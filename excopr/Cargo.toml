@@ -1,0 +1,11 @@
+[package]
+name = "excopr"
+version = "0.1.0"
+authors = ["Stepan Henek"]
+edition = "2018"
+keywords = ["configuration", "argument", "cli", "arg", "parser", "parse"]
+categories = ["command-line-interface"]
+description = "Extensible Configuration Processor"
+readme = "README.md"
+
+[dependencies]
