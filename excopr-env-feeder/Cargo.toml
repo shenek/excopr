@@ -1,0 +1,9 @@
+[package]
+name = "excopr-env-feeder"
+version = "0.1.0"
+authors = ["Stepan Henek <stepan@henek.name>"]
+keywords = ["configuration", "env", "cli"]
+edition = "2018"
+
+[dependencies]
+excopr = { path = "../excopr" }

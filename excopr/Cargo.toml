@@ -1,7 +1,7 @@
 [package]
 name = "excopr"
 version = "0.1.0"
-authors = ["Stepan Henek"]
+authors = ["Stepan Henek <stepan@henek.name>"]
 edition = "2018"
 keywords = ["configuration", "argument", "cli", "arg", "parser", "parse"]
 categories = ["command-line-interface"]

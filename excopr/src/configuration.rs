@@ -52,6 +52,12 @@ pub struct Configuration {
     pub root: Element,
 }
 
+impl Configuration {
+    pub fn builder() -> Builder {
+        Builder::new()
+    }
+}
+
 pub trait Named {
     fn name(&self) -> &str;
 }
@@ -67,6 +73,7 @@ pub trait Node {
 }
 
 pub trait Values {
+    fn as_values(&mut self) -> &mut dyn Values;
     fn values(&self) -> &[Value];
     fn append(&mut self, feeder: &str, value: String);
     fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), ConfigError>;
@@ -144,6 +151,10 @@ mod tests {
     }
 
     impl Values for Cnf {
+        fn as_values(&mut self) -> &mut dyn Values {
+            self
+        }
+
         fn values(&self) -> &[Value] {
             &self.values
         }
@@ -210,6 +221,10 @@ mod tests {
     impl Field for Fld {}
 
     impl Values for Fld {
+        fn as_values(&mut self) -> &mut dyn Values {
+            self
+        }
+
         fn values(&self) -> &[Value] {
             &self.values
         }
