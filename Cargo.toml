@@ -3,4 +3,5 @@
 members = [
 	"excopr",
 	"excopr-env-feeder",
+	"excopr-tests",
 ]

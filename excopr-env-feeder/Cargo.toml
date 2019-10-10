@@ -7,3 +7,6 @@ edition = "2018"
 
 [dependencies]
 excopr = { path = "../excopr" }
+
+[dev-dependencies]
+excopr-tests = { path = "../excopr-tests" }

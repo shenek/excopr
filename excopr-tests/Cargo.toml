@@ -1,0 +1,8 @@
+[package]
+name = "excopr-tests"
+version = "0.1.0"
+authors = ["Stepan Henek"]
+edition = "2018"
+
+[dependencies]
+excopr = { path = "../excopr" }

@@ -60,137 +60,10 @@ impl Feeder for EnvFeeder {
 
 #[cfg(test)]
 mod tests {
-    use excopr::{
-        configuration::{
-            Config, Configuration, Element, Field, FieldContainer, Group, Named, Node, Values,
-        },
-        error,
-        value::Value,
-    };
+    use excopr_tests::{Configuration, Element, FakeConfig, FakeField, Node, Values};
     use std::{collections::HashMap, env};
 
     use super::EnvFeeder;
-
-    struct Cnf {
-        name: String,
-        elements: Vec<Element>,
-        groups: Vec<Box<dyn Group>>,
-        values: Vec<Value>,
-        feeder_matches: HashMap<String, Vec<String>>,
-    }
-
-    struct Fld {
-        name: String,
-        values: Vec<Value>,
-        feeder_matches: HashMap<String, Vec<String>>,
-    }
-
-    impl Named for Cnf {
-        fn name(&self) -> &str {
-            &self.name
-        }
-    }
-
-    impl Node for Cnf {
-        fn elements(&self) -> &[Element] {
-            self.elements.as_ref()
-        }
-        fn groups(&self) -> &[Box<dyn Group>] {
-            &self.groups[..]
-        }
-        fn elements_mut(&mut self) -> &mut Vec<Element> {
-            &mut self.elements
-        }
-    }
-
-    impl Values for Cnf {
-        fn as_values(&mut self) -> &mut dyn Values {
-            self
-        }
-
-        fn values(&self) -> &[Value] {
-            &self.values
-        }
-
-        fn append(&mut self, feeder: &str, value: String) {
-            self.values.push(Value::new(feeder.to_string(), value));
-        }
-
-        fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), error::Config> {
-            self.feeder_matches
-                .entry(feeder.to_string())
-                .or_default()
-                .push(key);
-            Ok(())
-        }
-
-        fn feeder_matches(&self, feeder: &str) -> Option<&[String]> {
-            let res = self.feeder_matches.get(feeder)?;
-            Some(res)
-        }
-    }
-
-    impl Config for Cnf {
-        fn add_config(mut self, config: Box<dyn Config>) -> Result<Self, error::Config>
-        where
-            Self: Sized,
-        {
-            self.elements.push(Element::Config(config));
-            Ok(self)
-        }
-        fn add_group(mut self, group: Box<dyn Group>) -> Result<Self, error::Config>
-        where
-            Self: Sized,
-        {
-            self.groups.push(group);
-            Ok(self)
-        }
-    }
-
-    impl FieldContainer for Cnf {
-        fn add_field(mut self, field: Box<dyn Field>) -> Result<Self, error::Config>
-        where
-            Self: Sized,
-        {
-            self.elements.push(Element::Field(field));
-            Ok(self)
-        }
-    }
-
-    impl Field for Fld {}
-
-    impl Values for Fld {
-        fn as_values(&mut self) -> &mut dyn Values {
-            self
-        }
-
-        fn values(&self) -> &[Value] {
-            &self.values
-        }
-
-        fn append(&mut self, feeder: &str, value: String) {
-            self.values.push(Value::new(feeder.to_string(), value));
-        }
-
-        fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), error::Config> {
-            self.feeder_matches
-                .entry(feeder.to_string())
-                .or_default()
-                .push(key);
-            Ok(())
-        }
-
-        fn feeder_matches(&self, feeder: &str) -> Option<&[String]> {
-            let res = self.feeder_matches.get(feeder)?;
-            Some(res)
-        }
-    }
-
-    impl Named for Fld {
-        fn name(&self) -> &str {
-            &self.name
-        }
-    }
 
     #[test]
     fn env_feeder_test() {
@@ -201,9 +74,9 @@ mod tests {
         let feeder = EnvFeeder::new("env_test");
 
         let builder = Configuration::builder();
-        let mut root = Cnf {
+        let mut root = FakeConfig {
             name: "first".to_string(),
-            elements: vec![Element::Field(Box::new(Fld {
+            elements: vec![Element::Field(Box::new(FakeField {
                 name: "second".to_string(),
                 values: vec![],
                 feeder_matches: HashMap::new(),

@@ -9,3 +9,6 @@ description = "Extensible Configuration Processor"
 readme = "README.md"
 
 [dependencies]
+
+[dev-dependencies]
+excopr-tests = { path = "../excopr-tests" }
