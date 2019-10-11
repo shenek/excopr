@@ -62,6 +62,13 @@ pub trait Named {
     fn name(&self) -> &str;
 }
 
+pub trait Help: Named {
+    /// Prints help test
+    fn help(&self, indentation: usize, expand: bool) -> Option<String> {
+        None
+    }
+}
+
 pub trait Members {
     fn members(&self) -> &[String];
 }
@@ -76,6 +83,7 @@ pub trait Values {
     fn as_values(&mut self) -> &mut dyn Values;
     fn values(&self) -> &[Value];
     fn append(&mut self, feeder: &str, value: String);
+    // TODO replace key with FeederItem - will contain extra data e.g. output used for help
     fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), ConfigError>;
     fn feeder_matches(&self, feeder: &str) -> Option<&[String]>;
 }
@@ -86,7 +94,7 @@ pub trait FieldContainer {
         Self: Sized;
 }
 
-pub trait Config: Named + Node + Values {
+pub trait Config: Named + Help + Node + Values {
     /// Adds mutually exclusive configs
     fn add_config(self, configs: Box<dyn Config>) -> Result<Self, ConfigError>
     where
@@ -96,9 +104,9 @@ pub trait Config: Named + Node + Values {
         Self: Sized;
 }
 
-pub trait Group: Named + Members {}
+pub trait Group: Named + Help + Members {}
 
-pub trait Field: Named + Values {}
+pub trait Field: Named + Help + Values {}
 
 pub enum Element {
     Config(Box<dyn Config>),
