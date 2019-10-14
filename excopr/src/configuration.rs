@@ -1,4 +1,8 @@
-use crate::{error::Config as ConfigError, feeder::Feeder, value::Value};
+use crate::{
+    error::Config as ConfigError,
+    feeder::{Feeder, Matches as FeederMatches},
+    value::Value,
+};
 
 pub struct Builder {
     feeders: Vec<Box<dyn Feeder>>,
@@ -19,14 +23,17 @@ impl Builder {
         Self::default()
     }
 
-    pub fn add_feeder(mut self, feeder: Box<dyn Feeder>) -> Result<Self, ConfigError> {
+    pub fn add_feeder<F>(mut self, feeder: F) -> Result<Self, ConfigError>
+    where
+        F: 'static + Feeder,
+    {
         if self.feeders.iter().any(|f| f.name() == feeder.name()) {
             Err(ConfigError::new(&format!(
                 "Feeder '{}' already exists",
                 feeder.name()
             )))
         } else {
-            self.feeders.push(feeder);
+            self.feeders.push(Box::new(feeder));
             Ok(self)
         }
     }
@@ -62,12 +69,14 @@ pub trait Named {
     fn name(&self) -> &str;
 }
 
+/*
 pub trait Help: Named {
     /// Prints help test
     fn help(&self, indentation: usize, expand: bool) -> Option<String> {
         None
     }
 }
+*/
 
 pub trait Members {
     fn members(&self) -> &[String];
@@ -83,9 +92,12 @@ pub trait Values {
     fn as_values(&mut self) -> &mut dyn Values;
     fn values(&self) -> &[Value];
     fn append(&mut self, feeder: &str, value: String);
-    // TODO replace key with FeederItem - will contain extra data e.g. output used for help
-    fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), ConfigError>;
-    fn feeder_matches(&self, feeder: &str) -> Option<&[String]>;
+    fn add_feeder_matches(
+        &mut self,
+        feeder_name: &str,
+        feeder_match: Box<dyn FeederMatches>,
+    ) -> Result<(), ConfigError>;
+    fn feeder_matches(&mut self, feeder_name: &str) -> Box<dyn FeederMatches>;
 }
 
 pub trait FieldContainer {
@@ -94,7 +106,7 @@ pub trait FieldContainer {
         Self: Sized;
 }
 
-pub trait Config: Named + Help + Node + Values {
+pub trait Config: Named + /*Help +*/ Node + Values {
     /// Adds mutually exclusive configs
     fn add_config(self, configs: Box<dyn Config>) -> Result<Self, ConfigError>
     where
@@ -104,9 +116,9 @@ pub trait Config: Named + Help + Node + Values {
         Self: Sized;
 }
 
-pub trait Group: Named + Help + Members {}
+pub trait Group: Named + /*Help +*/ Members {}
 
-pub trait Field: Named + Help + Values {}
+pub trait Field: Named + /*Help +*/ Values {}
 
 pub enum Element {
     Config(Box<dyn Config>),

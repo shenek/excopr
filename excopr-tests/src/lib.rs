@@ -3,7 +3,7 @@ pub use excopr::{
         Config, Configuration, Element, Field, FieldContainer, Group, Members, Named, Node, Values,
     },
     error::Config as ConfigError,
-    feeder::Feeder,
+    feeder::{self, Match},
     value::Value,
 };
 use std::collections::HashMap;
@@ -13,7 +13,7 @@ pub struct FakeConfig {
     pub elements: Vec<Element>,
     pub groups: Vec<Box<dyn Group>>,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Vec<String>>,
+    pub feeder_matches: HashMap<String, Box<dyn feeder::Matches>>,
 }
 
 pub struct FakeGroup {
@@ -24,12 +24,57 @@ pub struct FakeGroup {
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Vec<String>>,
+    pub feeder_matches: HashMap<String, Box<dyn feeder::Matches>>,
 }
 
 pub struct FakeFeeder {
     pub name: String,
     pub map: HashMap<String, String>,
+}
+
+pub struct FakeMatch {
+    id: String,
+}
+
+impl feeder::Match for FakeMatch {
+    fn id(&self) -> &str {
+        &self.id
+    }
+}
+
+pub struct FakeMatches {
+    matches: Vec<FakeMatch>,
+}
+
+impl feeder::Matches for FakeMatches {
+    fn hint(&self) -> String {
+        self.matches
+            .iter()
+            .map(|e| e.id().to_string())
+            .collect::<Vec<String>>()
+            .join(",")
+    }
+
+    fn matches(&self, feeder: &dyn feeder::Feeder) -> bool {
+        false
+    }
+}
+
+pub struct FakeMatchBuilder {
+    matches: Vec<FakeMatch>,
+}
+
+impl feeder::MatchesBuilder<FakeMatch, FakeMatches> for FakeMatchBuilder {
+    fn add_match(mut self, single_match: FakeMatch) -> Self {
+        self.matches.push(single_match);
+        self
+    }
+
+    fn build(self) -> FakeMatches {
+        FakeMatches {
+            matches: self.matches,
+        }
+    }
 }
 
 impl Named for FakeConfig {
@@ -63,17 +108,14 @@ impl Values for FakeConfig {
         self.values.push(Value::new(feeder.to_string(), value));
     }
 
-    fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), ConfigError> {
+    fn add_feeder_matches(
+        &mut self,
+        feeder_name: &str,
+        feeder_matches: Box<dyn feeder::Matches>,
+    ) -> Result<(), ConfigError> {
         self.feeder_matches
-            .entry(feeder.to_string())
-            .or_default()
-            .push(key);
+            .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
-    }
-
-    fn feeder_matches(&self, feeder: &str) -> Option<&[String]> {
-        let res = self.feeder_matches.get(feeder)?;
-        Some(res)
     }
 }
 
@@ -133,17 +175,14 @@ impl Values for FakeField {
         self.values.push(Value::new(feeder.to_string(), value));
     }
 
-    fn add_feeder_match(&mut self, feeder: &str, key: String) -> Result<(), ConfigError> {
+    fn add_feeder_matches(
+        &mut self,
+        feeder_name: &str,
+        feeder_matches: Box<dyn feeder::Matches>,
+    ) -> Result<(), ConfigError> {
         self.feeder_matches
-            .entry(feeder.to_string())
-            .or_default()
-            .push(key);
+            .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
-    }
-
-    fn feeder_matches(&self, feeder: &str) -> Option<&[String]> {
-        let res = self.feeder_matches.get(feeder)?;
-        Some(res)
     }
 }
 
@@ -153,7 +192,7 @@ impl Named for FakeField {
     }
 }
 
-impl Feeder for FakeFeeder {
+impl feeder::Feeder for FakeFeeder {
     fn name(&self) -> &str {
         &self.name
     }
@@ -161,6 +200,9 @@ impl Feeder for FakeFeeder {
     fn process(&mut self, element: &mut Element) -> Result<(), ConfigError> {
         match element {
             Element::Config(config) => {
+                if config.feeder_matches().matches(&self) {
+                    config.append(self.name(), val.to)
+                }
                 for m in config.feeder_matches(self.name()).unwrap_or(&[]).to_vec() {
                     if let Some(val) = self.map.get(&m) {
                         config.append(self.name(), val.to_string());
