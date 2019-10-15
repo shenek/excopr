@@ -170,9 +170,10 @@ impl Values for Element {
 #[cfg(test)]
 mod tests {
     use excopr_tests::{
-        Config, Configuration, Element, FakeConfig, FakeFeeder, FakeField, FakeGroup, Node, Values,
+        Config, Configuration, Element, FakeConfig, FakeFeeder, FakeField, FakeGroup, FakeMatches,
+        Node, Values,
     };
-    use std::collections::HashMap;
+    use std::{collections::HashMap, rc::Rc};
 
     #[test]
     fn impl_test() {
@@ -255,13 +256,6 @@ mod tests {
             feeder_matches: HashMap::new(),
         };
 
-        root.add_feeder_match("testing_feeder", "feeder_id_1".to_string())
-            .unwrap();
-        if let Element::Field(f) = &mut root.elements_mut()[0] {
-            f.add_feeder_match("testing_feeder", "feeder_id_2".to_string())
-                .unwrap();
-        }
-
         let mut map = HashMap::new();
         map.insert("feeder_id_1".to_string(), "11111".to_string());
         map.insert("feeder_id_2".to_string(), "22222".to_string());
@@ -269,7 +263,21 @@ mod tests {
         let feeder = FakeFeeder {
             name: "testing_feeder".to_string(),
             map,
+            matches: vec![],
         };
+
+        root.add_feeder_matches(
+            "testing_feeder",
+            Rc::new(FakeMatches {
+                matches: vec![feeder.add_match("feeder_id_1")],
+            }),
+        )
+        .unwrap();
+
+        if let Element::Field(f) = &mut root.elements_mut()[0] {
+            f.add_feeder_match("testing_feeder", "feeder_id_2".to_string())
+                .unwrap();
+        }
 
         let res = builder
             .add_feeder(Box::new(feeder))

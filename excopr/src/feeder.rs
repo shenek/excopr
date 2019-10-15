@@ -11,22 +11,23 @@ pub trait Match {
     fn repr(&self) -> &str;
 }
 
-pub trait MatchFactory {
-    /// Prepares match which can be placed into configuration tree
-    fn make_match(&self) -> Rc<dyn Match>;
-}
-
 /// Represents matches inside configuration node
 pub trait Matches {
     /// Hint which will be shown in help
     fn repr(&self) -> String;
     /// All matches
     fn matches(&self) -> Vec<Rc<dyn Match>>;
+    /// Add new match
+    fn add_match(&mut self, new_match: Rc<dyn Match>);
 }
 
 pub trait Feeder {
-    /// Processes configuration node
-    fn process(&mut self, element: &mut Element) -> Result<(), ConfigError>;
+    /// Default processing of configuration node
+    fn process(&mut self, element: &mut Element) -> Result<(), ConfigError> {
+        self.process_matches(element);
+        self.dfs(element)?;
+        Ok(())
+    }
 
     /// A feeder is supposed to have a unique name
     fn name(&self) -> &str;

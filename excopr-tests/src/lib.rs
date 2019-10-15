@@ -33,6 +33,7 @@ pub struct FakeFeeder {
     matches: Vec<FakeMatchFactory>,
 }
 
+#[derive(Clone)]
 pub struct FakeMatch {
     id_in_feeder: usize,
     repr: String,
@@ -63,17 +64,8 @@ impl FakeMatchFactory {
     }
 }
 
-impl feeder::MatchFactory for FakeMatchFactory {
-    fn make_match(&self) -> Rc<dyn Match> {
-        Rc::new(FakeMatch {
-            id_in_feeder: self.id_in_feeder,
-            repr: self.value.clone(),
-        })
-    }
-}
-
 pub struct FakeMatches {
-    matches: Vec<Rc<FakeMatch>>,
+    matches: Vec<Rc<dyn feeder::Match>>,
 }
 
 impl feeder::Matches for FakeMatches {
@@ -85,11 +77,15 @@ impl feeder::Matches for FakeMatches {
             .join(",")
     }
 
-    fn matches(&self) -> Vec<Rc<dyn Match>> {
+    fn matches(&self) -> Vec<Rc<dyn feeder::Match>> {
         self.matches
             .iter()
-            .map(|e| e.clone() as Rc<dyn Match>)
+            .map(|e| e.clone() as Rc<dyn feeder::Match>)
             .collect()
+    }
+
+    fn add_match(&mut self, new_match: Rc<dyn feeder::Match>) {
+        self.matches.push(new_match);
     }
 }
 
@@ -229,12 +225,5 @@ impl feeder::Feeder for FakeFeeder {
                 }
             }
         }
-    }
-
-    fn process(&mut self, element: &mut Element) -> Result<(), ConfigError> {
-        self.process_matches(element);
-        self.dfs(element)?;
-
-        Ok(())
     }
 }
