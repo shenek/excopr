@@ -3,6 +3,7 @@ use crate::{
     feeder::{Feeder, Matches as FeederMatches},
     value::Value,
 };
+use std::rc::Rc;
 
 pub struct Builder {
     feeders: Vec<Box<dyn Feeder>>,
@@ -95,9 +96,9 @@ pub trait Values {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_match: Box<dyn FeederMatches>,
+        feeder_match: Rc<dyn FeederMatches>,
     ) -> Result<(), ConfigError>;
-    fn feeder_matches(&mut self, feeder_name: &str) -> Box<dyn FeederMatches>;
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn FeederMatches>>;
 }
 
 pub trait FieldContainer {
@@ -123,6 +124,47 @@ pub trait Field: Named + /*Help +*/ Values {}
 pub enum Element {
     Config(Box<dyn Config>),
     Field(Box<dyn Field>),
+}
+
+impl Values for Element {
+    fn as_values(&mut self) -> &mut dyn Values {
+        match self {
+            Self::Config(config) => config.as_values(),
+            Self::Field(field) => field.as_values(),
+        }
+    }
+
+    fn values(&self) -> &[Value] {
+        match self {
+            Self::Config(config) => config.values(),
+            Self::Field(field) => field.values(),
+        }
+    }
+
+    fn append(&mut self, feeder: &str, value: String) {
+        match self {
+            Self::Config(config) => config.append(feeder, value),
+            Self::Field(field) => field.append(feeder, value),
+        }
+    }
+
+    fn add_feeder_matches(
+        &mut self,
+        feeder_name: &str,
+        feeder_match: Rc<dyn FeederMatches>,
+    ) -> Result<(), ConfigError> {
+        match self {
+            Self::Config(config) => config.add_feeder_matches(feeder_name, feeder_match),
+            Self::Field(field) => field.add_feeder_matches(feeder_name, feeder_match),
+        }
+    }
+
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn FeederMatches>> {
+        match self {
+            Self::Config(config) => config.feeder_matches(feeder_name),
+            Self::Field(field) => field.feeder_matches(feeder_name),
+        }
+    }
 }
 
 #[cfg(test)]

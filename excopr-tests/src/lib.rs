@@ -6,14 +6,14 @@ pub use excopr::{
     feeder::{self, Match},
     value::Value,
 };
-use std::collections::HashMap;
+use std::{collections::HashMap, rc::Rc};
 
 pub struct FakeConfig {
     pub name: String,
     pub elements: Vec<Element>,
     pub groups: Vec<Box<dyn Group>>,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Box<dyn feeder::Matches>>,
+    pub feeder_matches: HashMap<String, Rc<dyn feeder::Matches>>,
 }
 
 pub struct FakeGroup {
@@ -24,56 +24,72 @@ pub struct FakeGroup {
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Box<dyn feeder::Matches>>,
+    pub feeder_matches: HashMap<String, Rc<dyn feeder::Matches>>,
 }
 
 pub struct FakeFeeder {
     pub name: String,
     pub map: HashMap<String, String>,
+    matches: Vec<FakeMatchFactory>,
 }
 
 pub struct FakeMatch {
-    id: String,
+    id_in_feeder: usize,
+    repr: String,
 }
 
 impl feeder::Match for FakeMatch {
-    fn id(&self) -> &str {
-        &self.id
+    fn id_in_feeder(&self) -> usize {
+        self.id_in_feeder
+    }
+
+    fn repr(&self) -> &str {
+        &self.repr
+    }
+}
+
+pub struct FakeMatchFactory {
+    /// There can be any generic value to be matched
+    value: String,
+    id_in_feeder: usize,
+}
+
+impl FakeMatchFactory {
+    fn new(id_in_feeder: usize, value: String) -> Self {
+        Self {
+            id_in_feeder,
+            value,
+        }
+    }
+}
+
+impl feeder::MatchFactory for FakeMatchFactory {
+    fn make_match(&self) -> Rc<dyn Match> {
+        Rc::new(FakeMatch {
+            id_in_feeder: self.id_in_feeder,
+            repr: self.value.clone(),
+        })
     }
 }
 
 pub struct FakeMatches {
-    matches: Vec<FakeMatch>,
+    matches: Vec<Rc<FakeMatch>>,
 }
 
 impl feeder::Matches for FakeMatches {
-    fn hint(&self) -> String {
+    fn repr(&self) -> String {
         self.matches
             .iter()
-            .map(|e| e.id().to_string())
-            .collect::<Vec<String>>()
+            .map(|e| e.repr())
+            .collect::<Vec<&str>>()
             .join(",")
     }
 
-    fn matches(&self, feeder: &dyn feeder::Feeder) -> bool {
-        false
-    }
-}
-
-pub struct FakeMatchBuilder {
-    matches: Vec<FakeMatch>,
-}
-
-impl feeder::MatchesBuilder<FakeMatch, FakeMatches> for FakeMatchBuilder {
-    fn add_match(mut self, single_match: FakeMatch) -> Self {
-        self.matches.push(single_match);
-        self
-    }
-
-    fn build(self) -> FakeMatches {
-        FakeMatches {
-            matches: self.matches,
-        }
+    fn matches(&self) -> Vec<Rc<dyn Match>> {
+        self.matches
+            .iter()
+            .map(|e| e.clone() as Rc<dyn Match>)
+            .collect()
     }
 }
 
@@ -111,11 +127,15 @@ impl Values for FakeConfig {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Box<dyn feeder::Matches>,
+        feeder_matches: Rc<dyn feeder::Matches>,
     ) -> Result<(), ConfigError> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
+    }
+
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn feeder::Matches>> {
+        self.feeder_matches.get(feeder_name).map(|e| e.clone())
     }
 }
 
@@ -178,11 +198,15 @@ impl Values for FakeField {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Box<dyn feeder::Matches>,
+        feeder_matches: Rc<dyn feeder::Matches>,
     ) -> Result<(), ConfigError> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
+    }
+
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn feeder::Matches>> {
+        self.feeder_matches.get(feeder_name).cloned()
     }
 }
 
@@ -197,26 +221,18 @@ impl feeder::Feeder for FakeFeeder {
         &self.name
     }
 
+    fn process_matches(&mut self, element: &mut Element) {
+        if let Some(matches) = element.feeder_matches(self.name()) {
+            for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
+                if let Some(val) = self.map.get(&self.matches[idx].value) {
+                    element.append(self.name(), val.to_string());
+                }
+            }
+        }
+    }
+
     fn process(&mut self, element: &mut Element) -> Result<(), ConfigError> {
-        match element {
-            Element::Config(config) => {
-                if config.feeder_matches().matches(&self) {
-                    config.append(self.name(), val.to)
-                }
-                for m in config.feeder_matches(self.name()).unwrap_or(&[]).to_vec() {
-                    if let Some(val) = self.map.get(&m) {
-                        config.append(self.name(), val.to_string());
-                    }
-                }
-            }
-            Element::Field(field) => {
-                for m in field.feeder_matches(self.name()).unwrap_or(&[]).to_vec() {
-                    if let Some(val) = self.map.get(&m) {
-                        (*field).append(self.name(), val.to_string());
-                    }
-                }
-            }
-        };
+        self.process_matches(element);
         self.dfs(element)?;
 
         Ok(())

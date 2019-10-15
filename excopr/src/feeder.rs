@@ -1,26 +1,31 @@
+use std::rc::Rc;
+
 use crate::{configuration::Element, error::Config as ConfigError};
 
+/// Trait which will identify underlying Feeder structure
+/// It should be placed inside configuration node
 pub trait Match {
-    fn id(&self) -> &str;
+    /// Number which can be used to identify linked internal structure inside feeder
+    fn id_in_feeder(&self) -> usize;
+    /// Human readable name
+    fn repr(&self) -> &str;
 }
 
+pub trait MatchFactory {
+    /// Prepares match which can be placed into configuration tree
+    fn make_match(&self) -> Rc<dyn Match>;
+}
+
+/// Represents matches inside configuration node
 pub trait Matches {
-    /// Hint which will be shown in context
-    fn hint(&self) -> String;
-    fn matches(&self, feeder: &dyn Feeder) -> bool;
-}
-
-pub trait MatchesBuilder<M, Ms>
-where
-    Ms: Matches,
-    M: Match,
-{
-    fn add_match(self, single_match: M) -> Self;
-    fn build(self) -> Ms;
+    /// Hint which will be shown in help
+    fn repr(&self) -> String;
+    /// All matches
+    fn matches(&self) -> Vec<Rc<dyn Match>>;
 }
 
 pub trait Feeder {
-    /// Processes entire configuration tree
+    /// Processes configuration node
     fn process(&mut self, element: &mut Element) -> Result<(), ConfigError>;
 
     /// A feeder is supposed to have a unique name
@@ -37,6 +42,7 @@ pub trait Feeder {
         Ok(())
     }
 
-    /// Current value
-    fn current_value(&self) -> &str;
+    /// Checks feeder matches of the feeder and appends
+    /// value(s) if match passes
+    fn process_matches(&mut self, element: &mut Element);
 }
