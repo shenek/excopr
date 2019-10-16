@@ -223,16 +223,10 @@ mod tests {
     fn adding_feeders() {
         let builder = Configuration::builder();
         let builder = builder
-            .add_feeder(Box::new(FakeFeeder {
-                name: "test".to_string(),
-                map: HashMap::new(),
-            }))
+            .add_feeder(FakeFeeder::new("test", HashMap::new()))
             .unwrap();
         assert!(builder
-            .add_feeder(Box::new(FakeFeeder {
-                name: "test".to_string(),
-                map: HashMap::new(),
-            }))
+            .add_feeder(FakeFeeder::new("test", HashMap::new()))
             .is_err());
     }
 
@@ -260,27 +254,24 @@ mod tests {
         map.insert("feeder_id_1".to_string(), "11111".to_string());
         map.insert("feeder_id_2".to_string(), "22222".to_string());
 
-        let feeder = FakeFeeder {
-            name: "testing_feeder".to_string(),
-            map,
-            matches: vec![],
-        };
+        let mut feeder = FakeFeeder::new("testing_feeder", map);
 
         root.add_feeder_matches(
             "testing_feeder",
-            Rc::new(FakeMatches {
-                matches: vec![feeder.add_match("feeder_id_1")],
-            }),
+            Rc::new(FakeMatches::new(vec![feeder.add_match("feeder_id_1")])),
         )
         .unwrap();
 
         if let Element::Field(f) = &mut root.elements_mut()[0] {
-            f.add_feeder_match("testing_feeder", "feeder_id_2".to_string())
-                .unwrap();
+            f.add_feeder_matches(
+                "testing_feeder",
+                Rc::new(FakeMatches::new(vec![feeder.add_match("feeder_id_2")])),
+            )
+            .unwrap();
         }
 
         let res = builder
-            .add_feeder(Box::new(feeder))
+            .add_feeder(feeder)
             .unwrap()
             .set_root(Element::Config(Box::new(root)))
             .build()

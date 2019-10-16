@@ -30,7 +30,7 @@ pub struct FakeField {
 pub struct FakeFeeder {
     pub name: String,
     pub map: HashMap<String, String>,
-    matches: Vec<FakeMatchFactory>,
+    matches: Vec<Rc<FakeMatch>>,
 }
 
 #[derive(Clone)]
@@ -49,23 +49,14 @@ impl feeder::Match for FakeMatch {
     }
 }
 
-pub struct FakeMatchFactory {
-    /// There can be any generic value to be matched
-    value: String,
-    id_in_feeder: usize,
-}
-
-impl FakeMatchFactory {
-    fn new(id_in_feeder: usize, value: String) -> Self {
-        Self {
-            id_in_feeder,
-            value,
-        }
-    }
-}
-
 pub struct FakeMatches {
     matches: Vec<Rc<dyn feeder::Match>>,
+}
+
+impl FakeMatches {
+    pub fn new(matches: Vec<Rc<dyn feeder::Match>>) -> Self {
+        Self { matches }
+    }
 }
 
 impl feeder::Matches for FakeMatches {
@@ -220,10 +211,29 @@ impl feeder::Feeder for FakeFeeder {
     fn process_matches(&mut self, element: &mut Element) {
         if let Some(matches) = element.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
-                if let Some(val) = self.map.get(&self.matches[idx].value) {
+                if let Some(val) = self.map.get(&self.matches[idx].repr) {
                     element.append(self.name(), val.to_string());
                 }
             }
+        }
+    }
+}
+
+impl FakeFeeder {
+    pub fn add_match(&mut self, match_name: &str) -> Rc<dyn feeder::Match> {
+        let new_match = Rc::new(FakeMatch {
+            id_in_feeder: self.matches.len(),
+            repr: match_name.to_string(),
+        });
+        self.matches.push(new_match.clone());
+        new_match as Rc<dyn feeder::Match>
+    }
+
+    pub fn new(name: &str, map: HashMap<String, String>) -> Self {
+        Self {
+            name: name.to_string(),
+            map,
+            matches: vec![],
         }
     }
 }

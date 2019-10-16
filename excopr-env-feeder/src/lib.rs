@@ -44,7 +44,7 @@ impl feeder::Matches for EnvMatches {
     }
 }
 
-struct EnvFeeder {
+pub struct EnvFeeder {
     name: String,
     env_vars: HashMap<String, String>,
     matches: Vec<Rc<EnvMatch>>,
@@ -85,6 +85,10 @@ impl Feeder for EnvFeeder {
     }
 
     fn process_matches(&mut self, element: &mut Element) {
+        // TODO several strategies can be use here:
+        // * add value only if no prev value is set
+        // * add value only if no prev values from this feeder is set
+        // * ...
         if let Some(matches) = element.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(value) = self.env_vars.get(&self.matches[idx].env_variable_name) {
@@ -125,32 +129,18 @@ mod tests {
 
         root.add_feeder_matches(
             "env_test",
-            Rc::new(EnvMatches {
-                matches: vec![feeder.add_match("TEST2")],
-            }),
+            Rc::new(EnvMatches::new(vec![feeder.add_match("TEST2")])),
         )
         .unwrap();
 
         if let Element::Field(f) = &mut root.elements_mut()[0] {
             f.add_feeder_matches(
                 "env_test",
-                Rc::new(EnvMatches {
-                    matches: vec![feeder.add_match("TEST3")],
-                }),
-            )
-            .unwrap();
-            f.add_feeder_matches(
-                "env_test",
-                Rc::new(EnvMatches {
-                    matches: vec![feeder.add_match("TEST1")],
-                }),
-            )
-            .unwrap();
-            f.add_feeder_matches(
-                "env_test",
-                Rc::new(EnvMatches {
-                    matches: vec![feeder.add_match("TEST4")],
-                }),
+                Rc::new(EnvMatches::new(vec![
+                    feeder.add_match("TEST3"),
+                    feeder.add_match("TEST1"),
+                    feeder.add_match("TEST4"),
+                ])),
             )
             .unwrap();
         }
