@@ -68,16 +68,9 @@ impl Configuration {
 
 pub trait Named {
     fn name(&self) -> &str;
-}
 
-/*
-pub trait Help: Named {
-    /// Prints help test
-    fn help(&self, indentation: usize, expand: bool) -> Option<String> {
-        None
-    }
+    fn help(&self, indentation: usize, expand: bool) -> String;
 }
-*/
 
 pub trait Members {
     fn members(&self) -> &[String];

@@ -84,6 +84,10 @@ impl Named for FakeConfig {
     fn name(&self) -> &str {
         &self.name
     }
+
+    fn help(&self, indentation: usize, expand: bool) -> String {
+        format!("{:indentation$}{}\n", &self.name, indentation = indentation)
+    }
 }
 
 impl Node for FakeConfig {
@@ -122,7 +126,7 @@ impl Values for FakeConfig {
     }
 
     fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn feeder::Matches>> {
-        self.feeder_matches.get(feeder_name).map(|e| e.clone())
+        self.feeder_matches.get(feeder_name).cloned()
     }
 }
 
@@ -165,6 +169,14 @@ impl Named for FakeGroup {
     fn name(&self) -> &str {
         &self.name
     }
+
+    fn help(&self, indentation: usize, expand: bool) -> String {
+        let mut res: String = format!("{:indentation$}{}\n", &self.name, indentation = indentation);
+        for item in self.members() {
+            res += &format!("{:indentation$}{}\n", &item, indentation = indentation + 1);
+        }
+        res
+    }
 }
 
 impl Field for FakeField {}
@@ -200,6 +212,15 @@ impl Values for FakeField {
 impl Named for FakeField {
     fn name(&self) -> &str {
         &self.name
+    }
+
+    fn help(&self, indentation: usize, expand: bool) -> String {
+        let mut res: String = format!("{:indentation$}{}", &self.name, indentation = indentation);
+        for (_, feeder_matches) in self.feeder_matches.iter() {
+            res += &format!("{} ", feeder_matches.repr());
+        }
+        res += "\n";
+        res
     }
 }
 
