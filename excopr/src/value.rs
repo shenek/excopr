@@ -1,5 +1,6 @@
 use std::str::FromStr;
 
+#[derive(Clone)]
 pub struct Value {
     feeder: String,
     value: String,

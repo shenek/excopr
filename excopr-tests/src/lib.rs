@@ -1,36 +1,40 @@
 pub use excopr::{
     configuration::{
-        Config, Configuration, Element, Field, FieldContainer, Group, Members, Named, Node, Values,
+        Config, Configuration, Element, ElementConverter, Field, FieldContainer, Group, Members,
+        Named, Node, Values,
     },
     error::Config as ConfigError,
-    feeder::{self, Match},
+    feeder::{self, Match, Matches},
     value::Value,
 };
-use std::{collections::HashMap, rc::Rc};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
 
 pub struct FakeConfig {
     pub name: String,
-    pub elements: Vec<Element>,
-    pub groups: Vec<Box<dyn Group>>,
+    pub elements: Vec<Arc<Mutex<Element>>>,
+    pub groups: Vec<Arc<Mutex<dyn Group>>>,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Rc<dyn feeder::Matches>>,
+    pub feeder_matches: HashMap<String, Arc<Mutex<dyn feeder::Matches>>>,
 }
 
 pub struct FakeGroup {
     pub name: String,
-    pub members: Vec<String>,
+    pub members: Vec<Arc<Mutex<Element>>>,
 }
 
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Rc<dyn feeder::Matches>>,
+    pub feeder_matches: HashMap<String, Arc<Mutex<dyn feeder::Matches>>>,
 }
 
 pub struct FakeFeeder {
     pub name: String,
     pub map: HashMap<String, String>,
-    matches: Vec<Rc<FakeMatch>>,
+    matches: Vec<Arc<Mutex<FakeMatch>>>,
 }
 
 #[derive(Clone)]
@@ -44,17 +48,17 @@ impl feeder::Match for FakeMatch {
         self.id_in_feeder
     }
 
-    fn repr(&self) -> &str {
-        &self.repr
+    fn repr(&self) -> String {
+        self.repr.clone()
     }
 }
 
 pub struct FakeMatches {
-    matches: Vec<Rc<dyn feeder::Match>>,
+    matches: Vec<Arc<Mutex<dyn feeder::Match>>>,
 }
 
 impl FakeMatches {
-    pub fn new(matches: Vec<Rc<dyn feeder::Match>>) -> Self {
+    pub fn new(matches: Vec<Arc<Mutex<dyn feeder::Match>>>) -> Self {
         Self { matches }
     }
 }
@@ -64,51 +68,42 @@ impl feeder::Matches for FakeMatches {
         self.matches
             .iter()
             .map(|e| e.repr())
-            .collect::<Vec<&str>>()
+            .collect::<Vec<String>>()
             .join(",")
     }
 
-    fn matches(&self) -> Vec<Rc<dyn feeder::Match>> {
-        self.matches
-            .iter()
-            .map(|e| e.clone() as Rc<dyn feeder::Match>)
-            .collect()
+    fn matches(&self) -> Vec<Arc<Mutex<dyn feeder::Match>>> {
+        self.matches.clone()
     }
 
-    fn add_match(&mut self, new_match: Rc<dyn feeder::Match>) {
+    fn add_match(&mut self, new_match: Arc<Mutex<dyn feeder::Match>>) {
         self.matches.push(new_match);
     }
 }
 
 impl Named for FakeConfig {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn help(&self, indentation: usize, expand: bool) -> String {
+        // TODO iterate
         format!("{:indentation$}{}\n", &self.name, indentation = indentation)
     }
 }
 
 impl Node for FakeConfig {
-    fn elements(&self) -> &[Element] {
-        self.elements.as_ref()
+    fn elements(&self) -> Vec<Arc<Mutex<Element>>> {
+        self.elements.clone()
     }
-    fn groups(&self) -> &[Box<dyn Group>] {
-        &self.groups[..]
-    }
-    fn elements_mut(&mut self) -> &mut Vec<Element> {
-        &mut self.elements
+    fn groups(&self) -> Vec<Arc<Mutex<dyn Group>>> {
+        self.groups.clone()
     }
 }
 
 impl Values for FakeConfig {
-    fn as_values(&mut self) -> &mut dyn Values {
-        self
-    }
-
-    fn values(&self) -> &[Value] {
-        &self.values
+    fn values(&self) -> Vec<Value> {
+        self.values.clone()
     }
 
     fn append(&mut self, feeder: &str, value: String) {
@@ -118,27 +113,32 @@ impl Values for FakeConfig {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Rc<dyn feeder::Matches>,
+        feeder_matches: Arc<Mutex<dyn feeder::Matches>>,
     ) -> Result<(), ConfigError> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn feeder::Matches>> {
-        self.feeder_matches.get(feeder_name).cloned()
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+        if let Some(matches) = self.feeder_matches.get(feeder_name) {
+            Some(matches.clone())
+        } else {
+            None
+        }
     }
 }
 
 impl Config for FakeConfig {
-    fn add_config(mut self, config: Box<dyn Config>) -> Result<Self, ConfigError>
+    fn add_config(mut self, config: Arc<Mutex<dyn Config>>) -> Result<Self, ConfigError>
     where
         Self: Sized,
     {
-        self.elements.push(Element::Config(config));
+        self.elements
+            .push(Arc::new(Mutex::new(Element::Config(config))));
         Ok(self)
     }
-    fn add_group(mut self, group: Box<dyn Group>) -> Result<Self, ConfigError>
+    fn add_group(mut self, group: Arc<Mutex<dyn Group>>) -> Result<Self, ConfigError>
     where
         Self: Sized,
     {
@@ -148,32 +148,37 @@ impl Config for FakeConfig {
 }
 
 impl FieldContainer for FakeConfig {
-    fn add_field(mut self, field: Box<dyn Field>) -> Result<Self, ConfigError>
+    fn add_field(mut self, field: Arc<Mutex<dyn Field>>) -> Result<Self, ConfigError>
     where
         Self: Sized,
     {
-        self.elements.push(Element::Field(field));
+        self.elements
+            .push(Arc::new(Mutex::new(Element::Field(field))));
         Ok(self)
     }
 }
 
 impl Members for FakeGroup {
-    fn members(&self) -> &[String] {
-        &self.members
+    fn members(&self) -> &[Arc<Mutex<Element>>] {
+        &self.members[..]
     }
 }
 
 impl Group for FakeGroup {}
 
 impl Named for FakeGroup {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn help(&self, indentation: usize, expand: bool) -> String {
         let mut res: String = format!("{:indentation$}{}\n", &self.name, indentation = indentation);
         for item in self.members() {
-            res += &format!("{:indentation$}{}\n", &item, indentation = indentation + 1);
+            res += &format!(
+                "{:indentation$}{}\n",
+                &item.help(indentation, expand),
+                indentation = indentation + 1
+            );
         }
         res
     }
@@ -182,12 +187,8 @@ impl Named for FakeGroup {
 impl Field for FakeField {}
 
 impl Values for FakeField {
-    fn as_values(&mut self) -> &mut dyn Values {
-        self
-    }
-
-    fn values(&self) -> &[Value] {
-        &self.values
+    fn values(&self) -> Vec<Value> {
+        self.values.clone()
     }
 
     fn append(&mut self, feeder: &str, value: String) {
@@ -197,27 +198,31 @@ impl Values for FakeField {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Rc<dyn feeder::Matches>,
+        feeder_matches: Arc<Mutex<dyn feeder::Matches>>,
     ) -> Result<(), ConfigError> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Rc<dyn feeder::Matches>> {
-        self.feeder_matches.get(feeder_name).cloned()
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+        if let Some(matches) = self.feeder_matches.get(feeder_name) {
+            Some(matches.clone())
+        } else {
+            None
+        }
     }
 }
 
 impl Named for FakeField {
-    fn name(&self) -> &str {
-        &self.name
+    fn name(&self) -> String {
+        self.name.clone()
     }
 
     fn help(&self, indentation: usize, expand: bool) -> String {
         let mut res: String = format!("{:indentation$}{}", &self.name, indentation = indentation);
         for (_, feeder_matches) in self.feeder_matches.iter() {
-            res += &format!("{} ", feeder_matches.repr());
+            res += &format!("{} ", feeder_matches.clone().repr());
         }
         res += "\n";
         res
@@ -229,11 +234,12 @@ impl feeder::Feeder for FakeFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: &mut Element) {
-        if let Some(matches) = element.feeder_matches(self.name()) {
+    fn process_matches(&mut self, element: Arc<Mutex<Element>>) {
+        let mut unlocked = element.lock().unwrap();
+        if let Some(matches) = unlocked.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
-                if let Some(val) = self.map.get(&self.matches[idx].repr) {
-                    element.append(self.name(), val.to_string());
+                if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
+                    unlocked.append(self.name(), val.to_string());
                 }
             }
         }
@@ -241,13 +247,13 @@ impl feeder::Feeder for FakeFeeder {
 }
 
 impl FakeFeeder {
-    pub fn add_match(&mut self, match_name: &str) -> Rc<dyn feeder::Match> {
-        let new_match = Rc::new(FakeMatch {
+    pub fn add_match(&mut self, match_name: &str) -> Arc<Mutex<dyn feeder::Match>> {
+        let new_match = Arc::new(Mutex::new(FakeMatch {
             id_in_feeder: self.matches.len(),
             repr: match_name.to_string(),
-        });
+        }));
         self.matches.push(new_match.clone());
-        new_match as Rc<dyn feeder::Match>
+        new_match
     }
 
     pub fn new(name: &str, map: HashMap<String, String>) -> Self {

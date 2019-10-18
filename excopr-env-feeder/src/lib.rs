@@ -1,8 +1,12 @@
-use std::{collections::HashMap, env, rc::Rc};
+use std::{
+    collections::HashMap,
+    env,
+    sync::{Arc, Mutex},
+};
 
 use excopr::{
     configuration::{Element, Values},
-    feeder::{self, Feeder},
+    feeder::{self, Feeder, Match, Matches},
 };
 
 #[derive(Clone)]
@@ -12,8 +16,8 @@ pub struct EnvMatch {
 }
 
 impl feeder::Match for EnvMatch {
-    fn repr(&self) -> &str {
-        &self.env_variable_name
+    fn repr(&self) -> String {
+        self.env_variable_name.clone()
     }
 
     fn id_in_feeder(&self) -> usize {
@@ -22,24 +26,26 @@ impl feeder::Match for EnvMatch {
 }
 
 pub struct EnvMatches {
-    matches: Vec<Rc<dyn feeder::Match>>,
+    matches: Vec<Arc<Mutex<dyn feeder::Match>>>,
 }
 
 impl EnvMatches {
-    pub fn new(matches: Vec<Rc<dyn feeder::Match>>) -> Self {
+    pub fn new(matches: Vec<Arc<Mutex<dyn feeder::Match>>>) -> Self {
         Self { matches }
     }
 }
 
 impl feeder::Matches for EnvMatches {
     fn repr(&self) -> String {
-        let matches: Vec<&str> = self.matches.iter().map(|e| e.repr()).collect();
+        let matches: Vec<String> = self.matches.iter().map(|e| e.repr()).collect();
         format!("[env {}]", matches.join(", "))
     }
-    fn add_match(&mut self, new_match: Rc<dyn feeder::Match>) {
+
+    fn add_match(&mut self, new_match: Arc<Mutex<dyn feeder::Match>>) {
         self.matches.push(new_match);
     }
-    fn matches(&self) -> Vec<Rc<dyn feeder::Match>> {
+
+    fn matches(&self) -> Vec<Arc<Mutex<dyn feeder::Match>>> {
         self.matches.clone()
     }
 }
@@ -47,7 +53,7 @@ impl feeder::Matches for EnvMatches {
 pub struct EnvFeeder {
     name: String,
     env_vars: HashMap<String, String>,
-    matches: Vec<Rc<EnvMatch>>,
+    matches: Vec<Arc<Mutex<EnvMatch>>>,
 }
 
 impl Default for EnvFeeder {
@@ -69,13 +75,13 @@ impl EnvFeeder {
         }
     }
 
-    pub fn add_match(&mut self, env_variable_name: &str) -> Rc<dyn feeder::Match> {
-        let new_match = Rc::new(EnvMatch {
+    pub fn add_match(&mut self, env_variable_name: &str) -> Arc<Mutex<dyn feeder::Match>> {
+        let new_match = Arc::new(Mutex::new(EnvMatch {
             id_in_feeder: self.matches.len(),
             env_variable_name: env_variable_name.to_string(),
-        });
+        }));
         self.matches.push(new_match.clone());
-        new_match as Rc<dyn feeder::Match>
+        new_match
     }
 }
 
@@ -84,15 +90,19 @@ impl Feeder for EnvFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: &mut Element) {
+    fn process_matches(&mut self, element: Arc<Mutex<Element>>) {
         // TODO several strategies can be use here:
         // * add value only if no prev value is set
         // * add value only if no prev values from this feeder is set
         // * ...
-        if let Some(matches) = element.feeder_matches(self.name()) {
+        let mut unlocked = element.lock().unwrap();
+        if let Some(matches) = unlocked.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
-                if let Some(value) = self.env_vars.get(&self.matches[idx].env_variable_name) {
-                    element.append(self.name(), value.to_string())
+                if let Some(value) = self
+                    .env_vars
+                    .get(&self.matches[idx].lock().unwrap().env_variable_name)
+                {
+                    unlocked.append(self.name(), value.to_string())
                 }
             }
         }
@@ -101,10 +111,16 @@ impl Feeder for EnvFeeder {
 
 #[cfg(test)]
 mod tests {
-    use excopr_tests::{Configuration, Element, FakeConfig, FakeField, Node, Values};
-    use std::{collections::HashMap, env, rc::Rc};
+    use excopr_tests::{
+        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, Node,
+    };
+    use std::{
+        collections::HashMap,
+        env,
+        sync::{Arc, Mutex},
+    };
 
-    use super::{EnvFeeder, EnvMatches};
+    use super::{EnvFeeder, EnvMatches, Values};
 
     #[test]
     fn env_feeder_test() {
@@ -115,51 +131,56 @@ mod tests {
         let mut feeder = EnvFeeder::new("env_test");
 
         let builder = Configuration::builder();
-        let mut root = FakeConfig {
-            name: "first".to_string(),
-            elements: vec![Element::Field(Box::new(FakeField {
+        let element = Arc::new(Mutex::new(Element::Field(Arc::new(Mutex::new(
+            FakeField {
                 name: "second".to_string(),
                 values: vec![],
                 feeder_matches: HashMap::new(),
-            }))],
+            },
+        )))));
+        let root = Arc::new(Mutex::new(FakeConfig {
+            name: "first".to_string(),
+            elements: vec![element],
             groups: vec![],
             values: vec![],
             feeder_matches: HashMap::new(),
-        };
+        }));
 
-        root.add_feeder_matches(
-            "env_test",
-            Rc::new(EnvMatches::new(vec![feeder.add_match("TEST2")])),
-        )
-        .unwrap();
-
-        if let Element::Field(f) = &mut root.elements_mut()[0] {
-            f.add_feeder_matches(
+        (root.clone() as Arc<Mutex<dyn Config>>)
+            .add_feeder_matches(
                 "env_test",
-                Rc::new(EnvMatches::new(vec![
-                    feeder.add_match("TEST3"),
-                    feeder.add_match("TEST1"),
-                    feeder.add_match("TEST4"),
-                ])),
+                Arc::new(Mutex::new(EnvMatches::new(vec![feeder.add_match("TEST2")]))),
             )
             .unwrap();
+
+        if let Some(mut field) = (root.clone() as Arc<Mutex<dyn Config>>).elements()[0].as_field() {
+            field
+                .add_feeder_matches(
+                    "env_test",
+                    Arc::new(Mutex::new(EnvMatches::new(vec![
+                        feeder.add_match("TEST3"),
+                        feeder.add_match("TEST1"),
+                        feeder.add_match("TEST4"),
+                    ]))),
+                )
+                .unwrap();
         }
 
         let res = builder
             .add_feeder(feeder)
             .unwrap()
-            .set_root(Element::Config(Box::new(root)))
+            .set_root(Element::Config(root))
             .build()
             .unwrap();
 
-        if let Element::Config(cfg) = res.root {
+        if let Some(cfg) = res.root.clone().as_config() {
             assert_eq!(cfg.values()[0].feeder(), "env_test");
             assert_eq!(
                 cfg.values()[0].value::<String>().unwrap(),
                 "test2".to_string()
             );
 
-            if let Element::Field(fld) = &cfg.elements()[0] {
+            if let Some(fld) = &cfg.elements()[0].as_field() {
                 assert_eq!(fld.values().len(), 2);
                 assert_eq!(fld.values()[0].feeder(), "env_test");
                 assert_eq!(fld.values()[0].value::<String>().unwrap(), "test3");
