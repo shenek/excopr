@@ -1,74 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    common::{FieldContainer, Members, Named, Node, Values},
+    common::{Named, Values},
     config::Config,
-    error,
-    feeder::{Feeder, Matches as FeederMatches},
+    error, feeder,
     field::Field,
     value::Value,
 };
-
-pub struct Builder {
-    feeders: Vec<Box<dyn Feeder>>,
-    root: Option<Arc<Mutex<Element>>>,
-}
-
-impl Default for Builder {
-    fn default() -> Self {
-        Self {
-            feeders: Vec::default(),
-            root: None,
-        }
-    }
-}
-
-impl Builder {
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    pub fn add_feeder<F>(mut self, feeder: F) -> Result<Self, error::Config>
-    where
-        F: 'static + Feeder,
-    {
-        if self.feeders.iter().any(|f| f.name() == feeder.name()) {
-            Err(error::Config::new(&format!(
-                "Feeder '{}' already exists",
-                feeder.name()
-            )))
-        } else {
-            self.feeders.push(Box::new(feeder));
-            Ok(self)
-        }
-    }
-
-    pub fn set_root(mut self, root: Element) -> Self {
-        self.root = Some(Arc::new(Mutex::new(root)));
-        self
-    }
-
-    pub fn build(self) -> Result<Configuration, error::Config> {
-        let root = self
-            .root
-            .ok_or_else(|| error::Config::new("No Configuration set"))?;
-        for mut feeder in self.feeders {
-            feeder.process(root.clone())?;
-        }
-        // TODO remove empty programs
-        Ok(Configuration { root })
-    }
-}
-
-pub struct Configuration {
-    pub root: Arc<Mutex<Element>>,
-}
-
-impl Configuration {
-    pub fn builder() -> Builder {
-        Builder::new()
-    }
-}
 
 pub enum Element {
     Config(Arc<Mutex<dyn Config>>),
@@ -93,7 +31,7 @@ impl Values for Element {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_match: Arc<Mutex<dyn FeederMatches>>,
+        feeder_match: Arc<Mutex<dyn feeder::Matches>>,
     ) -> Result<(), error::Config> {
         match self {
             Self::Config(config) => config.add_feeder_matches(feeder_name, feeder_match),
@@ -101,7 +39,7 @@ impl Values for Element {
         }
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
         match self {
             Self::Config(config) => config.feeder_matches(feeder_name),
             Self::Field(field) => field.feeder_matches(feeder_name),

@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::{configuration::Element, error, feeder, field::Field, group::Group, value::Value};
+use crate::{error, feeder, field::Field, group::Group, tree::Element, value::Value};
 /// Common traits
 
 pub trait Named {

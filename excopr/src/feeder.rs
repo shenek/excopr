@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    configuration::{Element, ElementConverter},
     error::Config as ConfigError,
+    tree::{Element, ElementConverter},
 };
 
 /// Trait which will identify underlying Feeder structure

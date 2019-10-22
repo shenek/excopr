@@ -2,9 +2,9 @@ use std::sync::{Arc, Mutex};
 
 use crate::{
     common::{Named, Node, Values},
-    configuration::Element,
     error, feeder,
     group::Group,
+    tree::Element,
     value::Value,
 };
 
