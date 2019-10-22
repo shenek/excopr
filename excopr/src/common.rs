@@ -3,9 +3,12 @@ use std::sync::{Arc, Mutex};
 use crate::{error, feeder, field::Field, group::Group, tree::Element, value::Value};
 /// Common traits
 
+pub trait Help {
+    fn help(&self) -> String;
+}
+
 pub trait Named {
     fn name(&self) -> String;
-    fn help(&self, indentation: usize, expand: bool) -> String;
 }
 
 pub trait Members {

@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    common::{Named, Values},
+    common::{Help, Named, Values},
     config::Config,
     error, feeder,
     field::Field,
@@ -54,11 +54,13 @@ impl Named for Element {
             Self::Field(field) => field.name(),
         }
     }
+}
 
-    fn help(&self, indentation: usize, expand: bool) -> String {
+impl Help for Element {
+    fn help(&self) -> String {
         match self {
-            Self::Config(config) => config.help(indentation, expand),
-            Self::Field(field) => field.help(indentation, expand),
+            Self::Config(config) => config.help(),
+            Self::Field(field) => field.help(),
         }
     }
 }
@@ -67,9 +69,11 @@ impl Named for Arc<Mutex<Element>> {
     fn name(&self) -> String {
         self.lock().unwrap().name()
     }
+}
 
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        self.lock().unwrap().help(indentation, expand)
+impl Help for Arc<Mutex<Element>> {
+    fn help(&self) -> String {
+        self.lock().unwrap().help()
     }
 }
 
