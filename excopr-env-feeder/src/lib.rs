@@ -4,10 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use excopr::{
-    configuration::{Element, Values},
-    feeder::{self, Feeder, Match, Matches},
-};
+use excopr::{Element, Feeder, FeederMatch, FeederMatches, Values};
 
 #[derive(Clone)]
 pub struct EnvMatch {
@@ -15,7 +12,7 @@ pub struct EnvMatch {
     env_variable_name: String,
 }
 
-impl feeder::Match for EnvMatch {
+impl FeederMatch for EnvMatch {
     fn repr(&self) -> String {
         self.env_variable_name.clone()
     }
@@ -26,26 +23,26 @@ impl feeder::Match for EnvMatch {
 }
 
 pub struct EnvMatches {
-    matches: Vec<Arc<Mutex<dyn feeder::Match>>>,
+    matches: Vec<Arc<Mutex<dyn FeederMatch>>>,
 }
 
 impl EnvMatches {
-    pub fn new(matches: Vec<Arc<Mutex<dyn feeder::Match>>>) -> Self {
+    pub fn new(matches: Vec<Arc<Mutex<dyn FeederMatch>>>) -> Self {
         Self { matches }
     }
 }
 
-impl feeder::Matches for EnvMatches {
+impl FeederMatches for EnvMatches {
     fn repr(&self) -> String {
         let matches: Vec<String> = self.matches.iter().map(|e| e.repr()).collect();
         format!("[env {}]", matches.join(", "))
     }
 
-    fn add_match(&mut self, new_match: Arc<Mutex<dyn feeder::Match>>) {
+    fn add_match(&mut self, new_match: Arc<Mutex<dyn FeederMatch>>) {
         self.matches.push(new_match);
     }
 
-    fn matches(&self) -> Vec<Arc<Mutex<dyn feeder::Match>>> {
+    fn matches(&self) -> Vec<Arc<Mutex<dyn FeederMatch>>> {
         self.matches.clone()
     }
 }
@@ -75,7 +72,7 @@ impl EnvFeeder {
         }
     }
 
-    pub fn add_match(&mut self, env_variable_name: &str) -> Arc<Mutex<dyn feeder::Match>> {
+    pub fn add_match(&mut self, env_variable_name: &str) -> Arc<Mutex<dyn FeederMatch>> {
         let new_match = Arc::new(Mutex::new(EnvMatch {
             id_in_feeder: self.matches.len(),
             env_variable_name: env_variable_name.to_string(),
@@ -112,7 +109,7 @@ impl Feeder for EnvFeeder {
 #[cfg(test)]
 mod tests {
     use excopr_tests::{
-        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, Node,
+        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, Node, Values,
     };
     use std::{
         collections::HashMap,
@@ -120,7 +117,7 @@ mod tests {
         sync::{Arc, Mutex},
     };
 
-    use super::{EnvFeeder, EnvMatches, Values};
+    use super::{EnvFeeder, EnvMatches};
 
     #[test]
     fn env_feeder_test() {

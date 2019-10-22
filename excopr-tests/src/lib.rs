@@ -1,11 +1,6 @@
 pub use excopr::{
-    configuration::{
-        Config, Configuration, Element, ElementConverter, Field, FieldContainer, Group, Members,
-        Named, Node, Values,
-    },
-    error::Config as ConfigError,
-    feeder::{self, Match, Matches},
-    value::Value,
+    error, Config, Configuration, Element, ElementConverter, Feeder, FeederMatch, FeederMatches,
+    Field, FieldContainer, Group, Members, Named, Node, Value, Values,
 };
 use std::{
     collections::HashMap,
@@ -17,7 +12,7 @@ pub struct FakeConfig {
     pub elements: Vec<Arc<Mutex<Element>>>,
     pub groups: Vec<Arc<Mutex<dyn Group>>>,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Arc<Mutex<dyn feeder::Matches>>>,
+    pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
 }
 
 pub struct FakeGroup {
@@ -28,7 +23,7 @@ pub struct FakeGroup {
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Arc<Mutex<dyn feeder::Matches>>>,
+    pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
 }
 
 pub struct FakeFeeder {
@@ -43,7 +38,7 @@ pub struct FakeMatch {
     repr: String,
 }
 
-impl feeder::Match for FakeMatch {
+impl FeederMatch for FakeMatch {
     fn id_in_feeder(&self) -> usize {
         self.id_in_feeder
     }
@@ -54,16 +49,16 @@ impl feeder::Match for FakeMatch {
 }
 
 pub struct FakeMatches {
-    matches: Vec<Arc<Mutex<dyn feeder::Match>>>,
+    matches: Vec<Arc<Mutex<dyn FeederMatch>>>,
 }
 
 impl FakeMatches {
-    pub fn new(matches: Vec<Arc<Mutex<dyn feeder::Match>>>) -> Self {
+    pub fn new(matches: Vec<Arc<Mutex<dyn FeederMatch>>>) -> Self {
         Self { matches }
     }
 }
 
-impl feeder::Matches for FakeMatches {
+impl FeederMatches for FakeMatches {
     fn repr(&self) -> String {
         self.matches
             .iter()
@@ -72,11 +67,11 @@ impl feeder::Matches for FakeMatches {
             .join(",")
     }
 
-    fn matches(&self) -> Vec<Arc<Mutex<dyn feeder::Match>>> {
+    fn matches(&self) -> Vec<Arc<Mutex<dyn FeederMatch>>> {
         self.matches.clone()
     }
 
-    fn add_match(&mut self, new_match: Arc<Mutex<dyn feeder::Match>>) {
+    fn add_match(&mut self, new_match: Arc<Mutex<dyn FeederMatch>>) {
         self.matches.push(new_match);
     }
 }
@@ -113,14 +108,14 @@ impl Values for FakeConfig {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), ConfigError> {
+        feeder_matches: Arc<Mutex<dyn FeederMatches>>,
+    ) -> Result<(), error::Config> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
         if let Some(matches) = self.feeder_matches.get(feeder_name) {
             Some(matches.clone())
         } else {
@@ -130,7 +125,7 @@ impl Values for FakeConfig {
 }
 
 impl Config for FakeConfig {
-    fn add_config(mut self, config: Arc<Mutex<dyn Config>>) -> Result<Self, ConfigError>
+    fn add_config(mut self, config: Arc<Mutex<dyn Config>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -138,7 +133,7 @@ impl Config for FakeConfig {
             .push(Arc::new(Mutex::new(Element::Config(config))));
         Ok(self)
     }
-    fn add_group(mut self, group: Arc<Mutex<dyn Group>>) -> Result<Self, ConfigError>
+    fn add_group(mut self, group: Arc<Mutex<dyn Group>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -148,7 +143,7 @@ impl Config for FakeConfig {
 }
 
 impl FieldContainer for FakeConfig {
-    fn add_field(mut self, field: Arc<Mutex<dyn Field>>) -> Result<Self, ConfigError>
+    fn add_field(mut self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -198,14 +193,14 @@ impl Values for FakeField {
     fn add_feeder_matches(
         &mut self,
         feeder_name: &str,
-        feeder_matches: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), ConfigError> {
+        feeder_matches: Arc<Mutex<dyn FeederMatches>>,
+    ) -> Result<(), error::Config> {
         self.feeder_matches
             .insert(feeder_name.to_string(), feeder_matches);
         Ok(())
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
         if let Some(matches) = self.feeder_matches.get(feeder_name) {
             Some(matches.clone())
         } else {
@@ -229,7 +224,7 @@ impl Named for FakeField {
     }
 }
 
-impl feeder::Feeder for FakeFeeder {
+impl Feeder for FakeFeeder {
     fn name(&self) -> &str {
         &self.name
     }
@@ -247,7 +242,7 @@ impl feeder::Feeder for FakeFeeder {
 }
 
 impl FakeFeeder {
-    pub fn add_match(&mut self, match_name: &str) -> Arc<Mutex<dyn feeder::Match>> {
+    pub fn add_match(&mut self, match_name: &str) -> Arc<Mutex<dyn FeederMatch>> {
         let new_match = Arc::new(Mutex::new(FakeMatch {
             id_in_feeder: self.matches.len(),
             repr: match_name.to_string(),

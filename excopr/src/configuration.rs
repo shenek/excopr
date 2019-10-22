@@ -1,9 +1,13 @@
+use std::sync::{Arc, Mutex};
+
 use crate::{
-    error::Config as ConfigError,
+    config::Config,
+    error,
     feeder::{Feeder, Matches as FeederMatches},
+    field::Field,
+    group::Group,
     value::Value,
 };
-use std::sync::{Arc, Mutex};
 
 pub struct Builder {
     feeders: Vec<Box<dyn Feeder>>,
@@ -24,12 +28,12 @@ impl Builder {
         Self::default()
     }
 
-    pub fn add_feeder<F>(mut self, feeder: F) -> Result<Self, ConfigError>
+    pub fn add_feeder<F>(mut self, feeder: F) -> Result<Self, error::Config>
     where
         F: 'static + Feeder,
     {
         if self.feeders.iter().any(|f| f.name() == feeder.name()) {
-            Err(ConfigError::new(&format!(
+            Err(error::Config::new(&format!(
                 "Feeder '{}' already exists",
                 feeder.name()
             )))
@@ -44,10 +48,10 @@ impl Builder {
         self
     }
 
-    pub fn build(self) -> Result<Configuration, ConfigError> {
+    pub fn build(self) -> Result<Configuration, error::Config> {
         let root = self
             .root
-            .ok_or_else(|| ConfigError::new("No Configuration set"))?;
+            .ok_or_else(|| error::Config::new("No Configuration set"))?;
         for mut feeder in self.feeders {
             feeder.process(root.clone())?;
         }
@@ -87,102 +91,19 @@ pub trait Values {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), ConfigError>;
+    ) -> Result<(), error::Config>;
     fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>>;
 }
 
 pub trait FieldContainer {
-    fn add_field(self, field: Arc<Mutex<dyn Field>>) -> Result<Self, ConfigError>
+    fn add_field(self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
     where
         Self: Sized;
 }
-
-pub trait Config: Named + /*Help +*/ Node + Values {
-    /// Adds mutually exclusive configs
-    fn add_config(self, configs: Arc<Mutex<dyn Config>>) -> Result<Self, ConfigError>
-    where
-        Self: Sized;
-    fn add_group(self, group: Arc<Mutex<dyn Group>>) -> Result<Self, ConfigError>
-    where
-        Self: Sized;
-}
-
-pub trait Group: Named + /*Help +*/ Members {}
-
-pub trait Field: Named + /*Help +*/ Values {}
 
 pub enum Element {
     Config(Arc<Mutex<dyn Config>>),
     Field(Arc<Mutex<dyn Field>>),
-}
-
-// TODO reduce with macros
-impl Values for Arc<Mutex<dyn Config>> {
-    fn values(&self) -> Vec<Value> {
-        self.lock().unwrap().values()
-    }
-
-    fn append(&mut self, feeder: &str, value: String) {
-        self.lock().unwrap().append(feeder, value)
-    }
-
-    fn add_feeder_matches(
-        &mut self,
-        feeder_name: &str,
-        feeder_match: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), ConfigError> {
-        self.lock()
-            .unwrap()
-            .add_feeder_matches(feeder_name, feeder_match)
-    }
-
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
-        self.lock().unwrap().feeder_matches(feeder_name)
-    }
-}
-
-impl Values for Arc<Mutex<dyn Field>> {
-    fn values(&self) -> Vec<Value> {
-        self.lock().unwrap().values()
-    }
-
-    fn append(&mut self, feeder: &str, value: String) {
-        self.lock().unwrap().append(feeder, value)
-    }
-
-    fn add_feeder_matches(
-        &mut self,
-        feeder_name: &str,
-        feeder_match: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), ConfigError> {
-        self.lock()
-            .unwrap()
-            .add_feeder_matches(feeder_name, feeder_match)
-    }
-
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
-        self.lock().unwrap().feeder_matches(feeder_name)
-    }
-}
-
-impl Named for Arc<Mutex<dyn Config>> {
-    fn name(&self) -> String {
-        self.lock().unwrap().name()
-    }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        self.lock().unwrap().help(indentation, expand)
-    }
-}
-
-impl Named for Arc<Mutex<dyn Field>> {
-    fn name(&self) -> String {
-        self.lock().unwrap().name()
-    }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        self.lock().unwrap().help(indentation, expand)
-    }
 }
 
 impl Values for Element {
@@ -204,7 +125,7 @@ impl Values for Element {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), ConfigError> {
+    ) -> Result<(), error::Config> {
         match self {
             Self::Config(config) => config.add_feeder_matches(feeder_name, feeder_match),
             Self::Field(field) => field.add_feeder_matches(feeder_name, feeder_match),
@@ -245,8 +166,6 @@ impl Named for Arc<Mutex<Element>> {
     }
 }
 
-// TODO impl lock free Elements
-
 pub trait ElementConverter {
     fn as_config(&mut self) -> Option<Arc<Mutex<dyn Config>>>;
     fn as_field(&mut self) -> Option<Arc<Mutex<dyn Field>>>;
@@ -273,26 +192,6 @@ impl ElementConverter for Arc<Mutex<Element>> {
     }
     fn as_field(&mut self) -> Option<Arc<Mutex<dyn Field>>> {
         self.lock().unwrap().as_field()
-    }
-}
-
-impl Node for Arc<Mutex<dyn Config>> {
-    fn elements(&self) -> Vec<Arc<Mutex<Element>>> {
-        self.lock().unwrap().elements()
-    }
-
-    fn groups(&self) -> Vec<Arc<Mutex<dyn Group>>> {
-        self.lock().unwrap().groups()
-    }
-}
-
-impl Named for Arc<Mutex<dyn Group>> {
-    fn name(&self) -> String {
-        self.lock().unwrap().name()
-    }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        self.lock().unwrap().help(indentation, expand)
     }
 }
 
