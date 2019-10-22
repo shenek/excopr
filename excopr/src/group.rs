@@ -1,6 +1,6 @@
 use std::sync::{Arc, Mutex};
 
-use crate::configuration::{Members, Named};
+use crate::common::{Members, Named};
 
 pub trait Group: Named + /*Help +*/ Members {}
 

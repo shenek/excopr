@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    configuration::{Named, Values},
+    common::{Named, Values},
     error, feeder,
     value::Value,
 };

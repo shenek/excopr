@@ -1,7 +1,8 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    configuration::{Element, Named, Node, Values},
+    common::{Named, Node, Values},
+    configuration::Element,
     error, feeder,
     group::Group,
     value::Value,

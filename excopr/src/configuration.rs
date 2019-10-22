@@ -1,11 +1,11 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
+    common::{FieldContainer, Members, Named, Node, Values},
     config::Config,
     error,
     feeder::{Feeder, Matches as FeederMatches},
     field::Field,
-    group::Group,
     value::Value,
 };
 
@@ -68,37 +68,6 @@ impl Configuration {
     pub fn builder() -> Builder {
         Builder::new()
     }
-}
-
-pub trait Named {
-    fn name(&self) -> String;
-    fn help(&self, indentation: usize, expand: bool) -> String;
-}
-
-pub trait Members {
-    fn members(&self) -> &[Arc<Mutex<Element>>];
-}
-
-pub trait Node {
-    fn elements(&self) -> Vec<Arc<Mutex<Element>>>;
-    fn groups(&self) -> Vec<Arc<Mutex<dyn Group>>>;
-}
-
-pub trait Values {
-    fn values(&self) -> Vec<Value>;
-    fn append(&mut self, feeder: &str, value: String);
-    fn add_feeder_matches(
-        &mut self,
-        feeder_name: &str,
-        feeder_match: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), error::Config>;
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>>;
-}
-
-pub trait FieldContainer {
-    fn add_field(self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
-    where
-        Self: Sized;
 }
 
 pub enum Element {
