@@ -8,7 +8,7 @@ use crate::{
     value::Value,
 };
 
-pub trait Config: Named + Help + Node + Values {
+pub trait Config: Named + Node + Values {
     /// Adds mutually exclusive configs
     fn add_config(self, configs: Arc<Mutex<dyn Config>>) -> Result<Self, error::Config>
     where
@@ -45,6 +45,12 @@ impl Values for Arc<Mutex<dyn Config>> {
 impl Named for Arc<Mutex<dyn Config>> {
     fn name(&self) -> String {
         self.lock().unwrap().name()
+    }
+}
+
+impl Help for dyn Config {
+    fn help(&self) -> String {
+        unimplemented!();
     }
 }
 

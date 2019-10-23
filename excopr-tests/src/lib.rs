@@ -80,11 +80,6 @@ impl Named for FakeConfig {
     fn name(&self) -> String {
         self.name.clone()
     }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        // TODO iterate
-        format!("{:indentation$}{}\n", &self.name, indentation = indentation)
-    }
 }
 
 impl Node for FakeConfig {
@@ -165,18 +160,6 @@ impl Named for FakeGroup {
     fn name(&self) -> String {
         self.name.clone()
     }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        let mut res: String = format!("{:indentation$}{}\n", &self.name, indentation = indentation);
-        for item in self.members() {
-            res += &format!(
-                "{:indentation$}{}\n",
-                &item.help(indentation, expand),
-                indentation = indentation + 1
-            );
-        }
-        res
-    }
 }
 
 impl Field for FakeField {}
@@ -212,15 +195,6 @@ impl Values for FakeField {
 impl Named for FakeField {
     fn name(&self) -> String {
         self.name.clone()
-    }
-
-    fn help(&self, indentation: usize, expand: bool) -> String {
-        let mut res: String = format!("{:indentation$}{}", &self.name, indentation = indentation);
-        for (_, feeder_matches) in self.feeder_matches.iter() {
-            res += &format!("{} ", feeder_matches.clone().repr());
-        }
-        res += "\n";
-        res
     }
 }
 

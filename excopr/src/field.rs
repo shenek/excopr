@@ -6,7 +6,7 @@ use crate::{
     value::Value,
 };
 
-pub trait Field: Named + Help + Values {}
+pub trait Field: Named + Values {}
 
 impl Values for Arc<Mutex<dyn Field>> {
     fn values(&self) -> Vec<Value> {
@@ -35,6 +35,12 @@ impl Values for Arc<Mutex<dyn Field>> {
 impl Named for Arc<Mutex<dyn Field>> {
     fn name(&self) -> String {
         self.lock().unwrap().name()
+    }
+}
+
+impl Help for dyn Field {
+    fn help(&self) -> String {
+        unimplemented!();
     }
 }
 
