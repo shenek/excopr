@@ -7,6 +7,10 @@ pub trait Help {
     fn help(&self) -> String;
 }
 
+pub trait Description {
+    fn description(&self) -> Option<String>;
+}
+
 pub trait Named {
     fn name(&self) -> String;
 }

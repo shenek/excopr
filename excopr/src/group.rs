@@ -1,8 +1,8 @@
 use std::sync::{Arc, Mutex};
 
-use crate::common::{Help, Members, Named};
+use crate::common::{Description, Members, Named};
 
-pub trait Group: Named + Members {}
+pub trait Group: Named + Members + Description {}
 
 impl Named for Arc<Mutex<dyn Group>> {
     fn name(&self) -> String {
@@ -10,14 +10,8 @@ impl Named for Arc<Mutex<dyn Group>> {
     }
 }
 
-impl Help for dyn Group {
-    fn help(&self) -> String {
-        unimplemented!();
-    }
-}
-
-impl Help for Arc<Mutex<dyn Group>> {
-    fn help(&self) -> String {
-        self.lock().unwrap().help()
+impl Description for Arc<Mutex<dyn Group>> {
+    fn description(&self) -> Option<String> {
+        self.lock().unwrap().description()
     }
 }

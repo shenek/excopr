@@ -133,6 +133,7 @@ mod tests {
                 name: "second".to_string(),
                 values: vec![],
                 feeder_matches: HashMap::new(),
+                description: None,
             },
         )))));
         let root = Arc::new(Mutex::new(FakeConfig {
@@ -141,6 +142,7 @@ mod tests {
             groups: vec![],
             values: vec![],
             feeder_matches: HashMap::new(),
+            description: None,
         }));
 
         (root.clone() as Arc<Mutex<dyn Config>>)

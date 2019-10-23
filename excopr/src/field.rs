@@ -1,12 +1,12 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    common::{Help, Named, Values},
+    common::{Description, Named, Values},
     error, feeder,
     value::Value,
 };
 
-pub trait Field: Named + Values {}
+pub trait Field: Named + Values + Description {}
 
 impl Values for Arc<Mutex<dyn Field>> {
     fn values(&self) -> Vec<Value> {
@@ -38,14 +38,8 @@ impl Named for Arc<Mutex<dyn Field>> {
     }
 }
 
-impl Help for dyn Field {
-    fn help(&self) -> String {
-        unimplemented!();
-    }
-}
-
-impl Help for Arc<Mutex<dyn Field>> {
-    fn help(&self) -> String {
-        self.lock().unwrap().help()
+impl Description for Arc<Mutex<dyn Field>> {
+    fn description(&self) -> Option<String> {
+        self.lock().unwrap().description()
     }
 }

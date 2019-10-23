@@ -1,6 +1,6 @@
 pub use excopr::{
-    error, Config, Configuration, Element, ElementConverter, Feeder, FeederMatch, FeederMatches,
-    Field, FieldContainer, Group, Members, Named, Node, Value, Values,
+    error, Config, Configuration, Description, Element, ElementConverter, Feeder, FeederMatch,
+    FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
 };
 use std::{
     collections::HashMap,
@@ -13,17 +13,20 @@ pub struct FakeConfig {
     pub groups: Vec<Arc<Mutex<dyn Group>>>,
     pub values: Vec<Value>,
     pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
+    pub description: Option<String>,
 }
 
 pub struct FakeGroup {
     pub name: String,
     pub members: Vec<Arc<Mutex<Element>>>,
+    pub description: Option<String>,
 }
 
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
     pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
+    pub description: Option<String>,
 }
 
 pub struct FakeFeeder {
@@ -137,6 +140,12 @@ impl Config for FakeConfig {
     }
 }
 
+impl Description for FakeConfig {
+    fn description(&self) -> Option<String> {
+        self.description.clone()
+    }
+}
+
 impl FieldContainer for FakeConfig {
     fn add_field(mut self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
     where
@@ -156,6 +165,12 @@ impl Members for FakeGroup {
 
 impl Group for FakeGroup {}
 
+impl Description for FakeGroup {
+    fn description(&self) -> Option<String> {
+        self.description.clone()
+    }
+}
+
 impl Named for FakeGroup {
     fn name(&self) -> String {
         self.name.clone()
@@ -163,6 +178,12 @@ impl Named for FakeGroup {
 }
 
 impl Field for FakeField {}
+
+impl Description for FakeField {
+    fn description(&self) -> Option<String> {
+        self.description.clone()
+    }
+}
 
 impl Values for FakeField {
     fn values(&self) -> Vec<Value> {

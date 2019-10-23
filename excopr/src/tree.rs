@@ -1,7 +1,7 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    common::{Help, Named, Values},
+    common::{Description, Help, Named, Values},
     config::Config,
     error, feeder,
     field::Field,
@@ -60,7 +60,16 @@ impl Help for Element {
     fn help(&self) -> String {
         match self {
             Self::Config(config) => config.help(),
-            Self::Field(field) => field.help(),
+            _ => panic!("help can be called only on configs"),
+        }
+    }
+}
+
+impl Description for Element {
+    fn description(&self) -> Option<String> {
+        match self {
+            Self::Config(config) => config.description(),
+            Self::Field(field) => field.description(),
         }
     }
 }
@@ -126,12 +135,14 @@ mod tests {
             groups: vec![],
             values: vec![],
             feeder_matches: HashMap::new(),
+            description: None,
         };
         let element = Arc::new(Mutex::new(Element::Field(Arc::new(Mutex::new(
             FakeField {
                 name: "Fld".to_string(),
                 values: vec![],
                 feeder_matches: HashMap::new(),
+                description: None,
             },
         )))));
         let subconfig = FakeConfig {
@@ -140,10 +151,12 @@ mod tests {
             groups: vec![],
             values: vec![],
             feeder_matches: HashMap::new(),
+            description: None,
         };
         let group = FakeGroup {
             name: "Grp".to_string(),
             members: vec![element],
+            description: None,
         };
         let subconfig = subconfig.add_group(Arc::new(Mutex::new(group))).unwrap();
         let root = root.add_config(Arc::new(Mutex::new(subconfig))).unwrap();
@@ -188,6 +201,7 @@ mod tests {
                 name: "second".to_string(),
                 values: vec![],
                 feeder_matches: HashMap::new(),
+                description: None,
             },
         )))));
         let mut root = FakeConfig {
@@ -196,6 +210,7 @@ mod tests {
             groups: vec![],
             values: vec![],
             feeder_matches: HashMap::new(),
+            description: None,
         };
 
         let mut map = HashMap::new();

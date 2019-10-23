@@ -10,7 +10,7 @@ mod value;
 use std::sync::{Arc, Mutex};
 
 pub use crate::{
-    common::{FieldContainer, Members, Named, Node, Values},
+    common::{Description, FieldContainer, Members, Named, Node, Values},
     config::Config,
     feeder::{Feeder, Match as FeederMatch, Matches as FeederMatches},
     field::Field,

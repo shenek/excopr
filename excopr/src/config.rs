@@ -1,14 +1,14 @@
 use std::sync::{Arc, Mutex};
 
 use crate::{
-    common::{Help, Named, Node, Values},
+    common::{Description, Help, Named, Node, Values},
     error, feeder,
     group::Group,
     tree::Element,
     value::Value,
 };
 
-pub trait Config: Named + Node + Values {
+pub trait Config: Named + Node + Values + Description {
     /// Adds mutually exclusive configs
     fn add_config(self, configs: Arc<Mutex<dyn Config>>) -> Result<Self, error::Config>
     where
@@ -57,6 +57,12 @@ impl Help for dyn Config {
 impl Help for Arc<Mutex<dyn Config>> {
     fn help(&self) -> String {
         self.lock().unwrap().help()
+    }
+}
+
+impl Description for Arc<Mutex<dyn Config>> {
+    fn description(&self) -> Option<String> {
+        self.lock().unwrap().description()
     }
 }
 
