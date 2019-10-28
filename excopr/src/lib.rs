@@ -7,10 +7,10 @@ mod group;
 mod tree;
 mod value;
 
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 pub use crate::{
-    common::{Description, FieldContainer, Members, Named, Node, Values},
+    common::{AsValues, Description, FieldContainer, Members, Named, Node, Values},
     config::Config,
     feeder::{Feeder, Match as FeederMatch, Matches as FeederMatches},
     field::Field,
@@ -21,7 +21,7 @@ pub use crate::{
 
 pub struct Builder {
     feeders: Vec<Box<dyn Feeder>>,
-    root: Option<Arc<Mutex<Element>>>,
+    root: Option<Arc<RwLock<dyn Config>>>,
 }
 
 impl Default for Builder {
@@ -53,8 +53,8 @@ impl Builder {
         }
     }
 
-    pub fn set_root(mut self, root: Element) -> Self {
-        self.root = Some(Arc::new(Mutex::new(root)));
+    pub fn set_root(mut self, root: Arc<RwLock<dyn Config>>) -> Self {
+        self.root = Some(root);
         self
     }
 
@@ -63,7 +63,7 @@ impl Builder {
             .root
             .ok_or_else(|| error::Config::new("No Configuration set"))?;
         for mut feeder in self.feeders {
-            feeder.process(root.clone())?;
+            feeder.populate(root.clone())?;
         }
         // TODO remove empty programs
         Ok(Configuration { root })
@@ -71,7 +71,7 @@ impl Builder {
 }
 
 pub struct Configuration {
-    pub root: Arc<Mutex<Element>>,
+    pub root: Arc<RwLock<dyn Config>>,
 }
 
 impl Configuration {

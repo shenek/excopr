@@ -1,20 +1,20 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
-    common::{Description, Named, Values},
+    common::{AsValues, Description, Named, Values},
     error, feeder,
     value::Value,
 };
 
-pub trait Field: Named + Values + Description {}
+pub trait Field: Named + Values + Description + AsValues {}
 
-impl Values for Arc<Mutex<dyn Field>> {
+impl Values for Arc<RwLock<dyn Field>> {
     fn values(&self) -> Vec<Value> {
-        self.lock().unwrap().values()
+        self.read().unwrap().values()
     }
 
     fn append(&mut self, feeder: &str, value: String) {
-        self.lock().unwrap().append(feeder, value)
+        self.write().unwrap().append(feeder, value)
     }
 
     fn add_feeder_matches(
@@ -22,24 +22,24 @@ impl Values for Arc<Mutex<dyn Field>> {
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
     ) -> Result<(), error::Config> {
-        self.lock()
+        self.write()
             .unwrap()
             .add_feeder_matches(feeder_name, feeder_match)
     }
 
     fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
-        self.lock().unwrap().feeder_matches(feeder_name)
+        self.write().unwrap().feeder_matches(feeder_name)
     }
 }
 
-impl Named for Arc<Mutex<dyn Field>> {
+impl Named for Arc<RwLock<dyn Field>> {
     fn name(&self) -> String {
-        self.lock().unwrap().name()
+        self.read().unwrap().name()
     }
 }
 
-impl Description for Arc<Mutex<dyn Field>> {
+impl Description for Arc<RwLock<dyn Field>> {
     fn description(&self) -> Option<String> {
-        self.lock().unwrap().description()
+        self.read().unwrap().description()
     }
 }

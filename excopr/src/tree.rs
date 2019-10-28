@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
     common::{Description, Help, Named, Values},
@@ -9,8 +9,8 @@ use crate::{
 };
 
 pub enum Element {
-    Config(Arc<Mutex<dyn Config>>),
-    Field(Arc<Mutex<dyn Field>>),
+    Config(Arc<RwLock<dyn Config>>),
+    Field(Arc<RwLock<dyn Field>>),
 }
 
 impl Values for Element {
@@ -87,18 +87,18 @@ impl Help for Arc<Mutex<Element>> {
 }
 
 pub trait ElementConverter {
-    fn as_config(&mut self) -> Option<Arc<Mutex<dyn Config>>>;
-    fn as_field(&mut self) -> Option<Arc<Mutex<dyn Field>>>;
+    fn as_config(&self) -> Option<Arc<RwLock<dyn Config>>>;
+    fn as_field(&self) -> Option<Arc<RwLock<dyn Field>>>;
 }
 
 impl ElementConverter for Element {
-    fn as_config(&mut self) -> Option<Arc<Mutex<dyn Config>>> {
+    fn as_config(&self) -> Option<Arc<RwLock<dyn Config>>> {
         match self {
             Self::Config(config) => Some(config.clone()),
             _ => None,
         }
     }
-    fn as_field(&mut self) -> Option<Arc<Mutex<dyn Field>>> {
+    fn as_field(&self) -> Option<Arc<RwLock<dyn Field>>> {
         match self {
             Self::Field(field) => Some(field.clone()),
             _ => None,
@@ -107,10 +107,10 @@ impl ElementConverter for Element {
 }
 
 impl ElementConverter for Arc<Mutex<Element>> {
-    fn as_config(&mut self) -> Option<Arc<Mutex<dyn Config>>> {
+    fn as_config(&self) -> Option<Arc<RwLock<dyn Config>>> {
         self.lock().unwrap().as_config()
     }
-    fn as_field(&mut self) -> Option<Arc<Mutex<dyn Field>>> {
+    fn as_field(&self) -> Option<Arc<RwLock<dyn Field>>> {
         self.lock().unwrap().as_field()
     }
 }
@@ -123,7 +123,7 @@ mod tests {
     };
     use std::{
         collections::HashMap,
-        sync::{Arc, Mutex},
+        sync::{Arc, Mutex, RwLock},
     };
 
     #[test]
@@ -137,7 +137,7 @@ mod tests {
             feeder_matches: HashMap::new(),
             description: None,
         };
-        let element = Arc::new(Mutex::new(Element::Field(Arc::new(Mutex::new(
+        let element = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
                 name: "Fld".to_string(),
                 values: vec![],
@@ -158,23 +158,17 @@ mod tests {
             members: vec![element],
             description: None,
         };
-        let subconfig = subconfig.add_group(Arc::new(Mutex::new(group))).unwrap();
-        let root = root.add_config(Arc::new(Mutex::new(subconfig))).unwrap();
+        let subconfig = subconfig.add_group(Arc::new(RwLock::new(group))).unwrap();
+        let root = root.add_config(Arc::new(RwLock::new(subconfig))).unwrap();
         let configuration = builder
-            .set_root(Element::Config(Arc::new(Mutex::new(root))))
+            .set_root(Arc::new(RwLock::new(root)))
             .build()
             .unwrap();
-        if let Some(conf) = configuration.root.clone().as_config() {
-            if let Some(subconf) = conf.elements()[0].as_config() {
-                assert_eq!(subconf.name(), "sub");
-                let group = subconf.groups()[0].clone();
-                assert_eq!(group.name(), "Grp");
-            } else {
-                panic!();
-            }
-        } else {
-            panic!();
-        }
+        let conf = configuration.root.read().unwrap();
+        let subconf = conf.elements()[0].as_config().unwrap();
+        assert_eq!(subconf.name(), "sub");
+        let group = subconf.groups()[0].clone();
+        assert_eq!(group.name(), "Grp");
     }
 
     #[test]
@@ -196,7 +190,7 @@ mod tests {
     #[test]
     fn values() {
         let builder = Configuration::builder();
-        let element = Arc::new(Mutex::new(Element::Field(Arc::new(Mutex::new(
+        let element = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
                 name: "second".to_string(),
                 values: vec![],
@@ -240,21 +234,17 @@ mod tests {
         let res = builder
             .add_feeder(feeder)
             .unwrap()
-            .set_root(Element::Config(Arc::new(Mutex::new(root))))
+            .set_root(Arc::new(RwLock::new(root)))
             .build()
             .unwrap();
 
-        if let Some(cfg) = res.root.clone().as_config() {
-            assert_eq!(cfg.values()[0].feeder(), "testing_feeder");
-            assert_eq!(cfg.values()[0].value::<u32>().unwrap(), 11111);
+        let cfg = res.root.read().unwrap();
+        assert_eq!(cfg.values()[0].feeder(), "testing_feeder");
+        assert_eq!(cfg.values()[0].value::<u32>().unwrap(), 11111);
 
-            if let Some(fld) = &cfg.elements()[0].as_field() {
-                assert_eq!(fld.values()[0].feeder(), "testing_feeder");
-                assert_eq!(fld.values()[0].value::<u16>().unwrap(), 22222);
-                assert!(fld.values()[0].value::<u8>().is_err());
-            }
-        } else {
-            panic!();
-        }
+        let fld = &cfg.elements()[0].as_field().unwrap();
+        assert_eq!(fld.values()[0].feeder(), "testing_feeder");
+        assert_eq!(fld.values()[0].value::<u16>().unwrap(), 22222);
+        assert!(fld.values()[0].value::<u8>().is_err());
     }
 }

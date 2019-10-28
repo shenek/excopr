@@ -1,16 +1,16 @@
 pub use excopr::{
-    error, Config, Configuration, Description, Element, ElementConverter, Feeder, FeederMatch,
-    FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
+    error, AsValues, Config, Configuration, Description, Element, ElementConverter, Feeder,
+    FeederMatch, FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
 };
 use std::{
     collections::HashMap,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
 pub struct FakeConfig {
     pub name: String,
     pub elements: Vec<Arc<Mutex<Element>>>,
-    pub groups: Vec<Arc<Mutex<dyn Group>>>,
+    pub groups: Vec<Arc<RwLock<dyn Group>>>,
     pub values: Vec<Value>,
     pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
     pub description: Option<String>,
@@ -89,7 +89,7 @@ impl Node for FakeConfig {
     fn elements(&self) -> Vec<Arc<Mutex<Element>>> {
         self.elements.clone()
     }
-    fn groups(&self) -> Vec<Arc<Mutex<dyn Group>>> {
+    fn groups(&self) -> Vec<Arc<RwLock<dyn Group>>> {
         self.groups.clone()
     }
 }
@@ -122,8 +122,14 @@ impl Values for FakeConfig {
     }
 }
 
+impl AsValues for FakeConfig {
+    fn as_values(&mut self) -> &mut dyn Values {
+        self
+    }
+}
+
 impl Config for FakeConfig {
-    fn add_config(mut self, config: Arc<Mutex<dyn Config>>) -> Result<Self, error::Config>
+    fn add_config(mut self, config: Arc<RwLock<dyn Config>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -131,7 +137,7 @@ impl Config for FakeConfig {
             .push(Arc::new(Mutex::new(Element::Config(config))));
         Ok(self)
     }
-    fn add_group(mut self, group: Arc<Mutex<dyn Group>>) -> Result<Self, error::Config>
+    fn add_group(mut self, group: Arc<RwLock<dyn Group>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -147,7 +153,7 @@ impl Description for FakeConfig {
 }
 
 impl FieldContainer for FakeConfig {
-    fn add_field(mut self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
+    fn add_field(mut self, field: Arc<RwLock<dyn Field>>) -> Result<Self, error::Config>
     where
         Self: Sized,
     {
@@ -213,6 +219,12 @@ impl Values for FakeField {
     }
 }
 
+impl AsValues for FakeField {
+    fn as_values(&mut self) -> &mut dyn Values {
+        self
+    }
+}
+
 impl Named for FakeField {
     fn name(&self) -> String {
         self.name.clone()
@@ -224,12 +236,11 @@ impl Feeder for FakeFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: Arc<Mutex<Element>>) {
-        let mut unlocked = element.lock().unwrap();
-        if let Some(matches) = unlocked.feeder_matches(self.name()) {
+    fn process_matches(&mut self, element: &mut dyn Values) {
+        if let Some(matches) = element.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
-                    unlocked.append(self.name(), val.to_string());
+                    element.append(self.name(), val.to_string());
                 }
             }
         }

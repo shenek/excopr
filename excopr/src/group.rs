@@ -1,17 +1,17 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, RwLock};
 
 use crate::common::{Description, Members, Named};
 
 pub trait Group: Named + Members + Description {}
 
-impl Named for Arc<Mutex<dyn Group>> {
+impl Named for Arc<RwLock<dyn Group>> {
     fn name(&self) -> String {
-        self.lock().unwrap().name()
+        self.read().unwrap().name()
     }
 }
 
-impl Description for Arc<Mutex<dyn Group>> {
+impl Description for Arc<RwLock<dyn Group>> {
     fn description(&self) -> Option<String> {
-        self.lock().unwrap().description()
+        self.read().unwrap().description()
     }
 }

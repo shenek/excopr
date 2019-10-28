@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use excopr::{Element, Feeder, FeederMatch, FeederMatches, Values};
+use excopr::{Feeder, FeederMatch, FeederMatches, Values};
 
 #[derive(Clone)]
 pub struct EnvMatch {
@@ -87,19 +87,18 @@ impl Feeder for EnvFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: Arc<Mutex<Element>>) {
+    fn process_matches(&mut self, element: &mut dyn Values) {
         // TODO several strategies can be use here:
         // * add value only if no prev value is set
         // * add value only if no prev values from this feeder is set
         // * ...
-        let mut unlocked = element.lock().unwrap();
-        if let Some(matches) = unlocked.feeder_matches(self.name()) {
+        if let Some(matches) = element.feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(value) = self
                     .env_vars
                     .get(&self.matches[idx].lock().unwrap().env_variable_name)
                 {
-                    unlocked.append(self.name(), value.to_string())
+                    element.append(self.name(), value.to_string())
                 }
             }
         }
@@ -114,7 +113,7 @@ mod tests {
     use std::{
         collections::HashMap,
         env,
-        sync::{Arc, Mutex},
+        sync::{Arc, Mutex, RwLock},
     };
 
     use super::{EnvFeeder, EnvMatches};
@@ -128,7 +127,7 @@ mod tests {
         let mut feeder = EnvFeeder::new("env_test");
 
         let builder = Configuration::builder();
-        let element = Arc::new(Mutex::new(Element::Field(Arc::new(Mutex::new(
+        let element = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
                 name: "second".to_string(),
                 values: vec![],
@@ -136,7 +135,7 @@ mod tests {
                 description: None,
             },
         )))));
-        let root = Arc::new(Mutex::new(FakeConfig {
+        let root = Arc::new(RwLock::new(FakeConfig {
             name: "first".to_string(),
             elements: vec![element],
             groups: vec![],
@@ -145,14 +144,15 @@ mod tests {
             description: None,
         }));
 
-        (root.clone() as Arc<Mutex<dyn Config>>)
+        (root.clone() as Arc<RwLock<dyn Config>>)
             .add_feeder_matches(
                 "env_test",
                 Arc::new(Mutex::new(EnvMatches::new(vec![feeder.add_match("TEST2")]))),
             )
             .unwrap();
 
-        if let Some(mut field) = (root.clone() as Arc<Mutex<dyn Config>>).elements()[0].as_field() {
+        if let Some(mut field) = (root.clone() as Arc<RwLock<dyn Config>>).elements()[0].as_field()
+        {
             field
                 .add_feeder_matches(
                     "env_test",
@@ -168,26 +168,22 @@ mod tests {
         let res = builder
             .add_feeder(feeder)
             .unwrap()
-            .set_root(Element::Config(root))
+            .set_root(root)
             .build()
             .unwrap();
 
-        if let Some(cfg) = res.root.clone().as_config() {
-            assert_eq!(cfg.values()[0].feeder(), "env_test");
-            assert_eq!(
-                cfg.values()[0].value::<String>().unwrap(),
-                "test2".to_string()
-            );
+        let cfg = res.root.read().unwrap();
+        assert_eq!(cfg.values()[0].feeder(), "env_test");
+        assert_eq!(
+            cfg.values()[0].value::<String>().unwrap(),
+            "test2".to_string()
+        );
 
-            if let Some(fld) = &cfg.elements()[0].as_field() {
-                assert_eq!(fld.values().len(), 2);
-                assert_eq!(fld.values()[0].feeder(), "env_test");
-                assert_eq!(fld.values()[0].value::<String>().unwrap(), "test3");
-                assert_eq!(fld.values()[1].feeder(), "env_test");
-                assert_eq!(fld.values()[1].value::<String>().unwrap(), "test1");
-            }
-        } else {
-            panic!();
-        }
+        let fld = &cfg.elements()[0].as_field().unwrap();
+        assert_eq!(fld.values().len(), 2);
+        assert_eq!(fld.values()[0].feeder(), "env_test");
+        assert_eq!(fld.values()[0].value::<String>().unwrap(), "test3");
+        assert_eq!(fld.values()[1].feeder(), "env_test");
+        assert_eq!(fld.values()[1].value::<String>().unwrap(), "test1");
     }
 }

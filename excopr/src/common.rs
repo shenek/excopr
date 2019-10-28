@@ -1,4 +1,4 @@
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{error, feeder, field::Field, group::Group, tree::Element, value::Value};
 /// Common traits
@@ -21,7 +21,7 @@ pub trait Members {
 
 pub trait Node {
     fn elements(&self) -> Vec<Arc<Mutex<Element>>>;
-    fn groups(&self) -> Vec<Arc<Mutex<dyn Group>>>;
+    fn groups(&self) -> Vec<Arc<RwLock<dyn Group>>>;
 }
 
 pub trait Values {
@@ -35,8 +35,12 @@ pub trait Values {
     fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>>;
 }
 
+pub trait AsValues {
+    fn as_values(&mut self) -> &mut dyn Values;
+}
+
 pub trait FieldContainer {
-    fn add_field(self, field: Arc<Mutex<dyn Field>>) -> Result<Self, error::Config>
+    fn add_field(self, field: Arc<RwLock<dyn Field>>) -> Result<Self, error::Config>
     where
         Self: Sized;
 }
