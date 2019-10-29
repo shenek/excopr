@@ -37,8 +37,12 @@ impl Values for Arc<RwLock<dyn Config>> {
             .add_feeder_matches(feeder_name, feeder_match)
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
-        self.write().unwrap().feeder_matches(feeder_name)
+    fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+        self.write().unwrap().get_feeder_matches(feeder_name)
+    }
+
+    fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn feeder::Matches>>> {
+        self.write().unwrap().all_feeder_matches()
     }
 }
 

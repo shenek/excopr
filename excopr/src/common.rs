@@ -32,7 +32,8 @@ pub trait Values {
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
     ) -> Result<(), error::Config>;
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>>;
+    fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>>;
+    fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn feeder::Matches>>>;
 }
 
 pub trait AsValues {

@@ -39,10 +39,17 @@ impl Values for Element {
         }
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
+    fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>> {
         match self {
-            Self::Config(config) => config.feeder_matches(feeder_name),
-            Self::Field(field) => field.feeder_matches(feeder_name),
+            Self::Config(config) => config.get_feeder_matches(feeder_name),
+            Self::Field(field) => field.get_feeder_matches(feeder_name),
+        }
+    }
+
+    fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn feeder::Matches>>> {
+        match self {
+            Self::Config(config) => config.all_feeder_matches(),
+            Self::Field(field) => field.all_feeder_matches(),
         }
     }
 }
@@ -134,14 +141,14 @@ mod tests {
             elements: vec![],
             groups: vec![],
             values: vec![],
-            feeder_matches: HashMap::new(),
+            feeder_matches: Vec::new(),
             description: None,
         };
         let element = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
                 name: "Fld".to_string(),
                 values: vec![],
-                feeder_matches: HashMap::new(),
+                feeder_matches: Vec::new(),
                 description: None,
             },
         )))));
@@ -150,7 +157,7 @@ mod tests {
             elements: vec![element.clone()],
             groups: vec![],
             values: vec![],
-            feeder_matches: HashMap::new(),
+            feeder_matches: Vec::new(),
             description: None,
         };
         let group = FakeGroup {
@@ -194,7 +201,7 @@ mod tests {
             FakeField {
                 name: "second".to_string(),
                 values: vec![],
-                feeder_matches: HashMap::new(),
+                feeder_matches: Vec::new(),
                 description: None,
             },
         )))));
@@ -203,7 +210,7 @@ mod tests {
             elements: vec![element],
             groups: vec![],
             values: vec![],
-            feeder_matches: HashMap::new(),
+            feeder_matches: Vec::new(),
             description: None,
         };
 

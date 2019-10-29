@@ -92,7 +92,7 @@ impl Feeder for EnvFeeder {
         // * add value only if no prev value is set
         // * add value only if no prev values from this feeder is set
         // * ...
-        if let Some(matches) = element.feeder_matches(self.name()) {
+        if let Some(matches) = element.get_feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(value) = self
                     .env_vars
@@ -111,7 +111,6 @@ mod tests {
         Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, Node, Values,
     };
     use std::{
-        collections::HashMap,
         env,
         sync::{Arc, Mutex, RwLock},
     };
@@ -131,7 +130,7 @@ mod tests {
             FakeField {
                 name: "second".to_string(),
                 values: vec![],
-                feeder_matches: HashMap::new(),
+                feeder_matches: Vec::new(),
                 description: None,
             },
         )))));
@@ -140,7 +139,7 @@ mod tests {
             elements: vec![element],
             groups: vec![],
             values: vec![],
-            feeder_matches: HashMap::new(),
+            feeder_matches: Vec::new(),
             description: None,
         }));
 

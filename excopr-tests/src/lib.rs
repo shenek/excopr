@@ -12,7 +12,7 @@ pub struct FakeConfig {
     pub elements: Vec<Arc<Mutex<Element>>>,
     pub groups: Vec<Arc<RwLock<dyn Group>>>,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
+    pub feeder_matches: Vec<(String, Arc<Mutex<dyn FeederMatches>>)>,
     pub description: Option<String>,
 }
 
@@ -25,7 +25,7 @@ pub struct FakeGroup {
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
-    pub feeder_matches: HashMap<String, Arc<Mutex<dyn FeederMatches>>>,
+    pub feeder_matches: Vec<(String, Arc<Mutex<dyn FeederMatches>>)>,
     pub description: Option<String>,
 }
 
@@ -108,17 +108,35 @@ impl Values for FakeConfig {
         feeder_name: &str,
         feeder_matches: Arc<Mutex<dyn FeederMatches>>,
     ) -> Result<(), error::Config> {
-        self.feeder_matches
-            .insert(feeder_name.to_string(), feeder_matches);
-        Ok(())
+        let name = feeder_name.to_string();
+        if self.feeder_matches.iter().any(|(n, _)| *n == name) {
+            Err(error::Config::new(&format!(
+                "feeder name '{}' already exists",
+                name
+            )))
+        } else {
+            self.feeder_matches
+                .push((feeder_name.to_string(), feeder_matches));
+            Ok(())
+        }
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
-        if let Some(matches) = self.feeder_matches.get(feeder_name) {
+    fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
+        let name = feeder_name.to_string();
+        if let Some((_, matches)) = self
+            .feeder_matches
+            .iter()
+            .filter(|(n, _)| *n == name)
+            .next()
+        {
             Some(matches.clone())
         } else {
             None
         }
+    }
+
+    fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn FeederMatches>>> {
+        self.feeder_matches.iter().map(|(_, m)| m.clone()).collect()
     }
 }
 
@@ -205,17 +223,35 @@ impl Values for FakeField {
         feeder_name: &str,
         feeder_matches: Arc<Mutex<dyn FeederMatches>>,
     ) -> Result<(), error::Config> {
-        self.feeder_matches
-            .insert(feeder_name.to_string(), feeder_matches);
-        Ok(())
+        let name = feeder_name.to_string();
+        if self.feeder_matches.iter().any(|(n, _)| *n == name) {
+            Err(error::Config::new(&format!(
+                "feeder name '{}' already exists",
+                name
+            )))
+        } else {
+            self.feeder_matches
+                .push((feeder_name.to_string(), feeder_matches));
+            Ok(())
+        }
     }
 
-    fn feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
-        if let Some(matches) = self.feeder_matches.get(feeder_name) {
+    fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn FeederMatches>>> {
+        let name = feeder_name.to_string();
+        if let Some((_, matches)) = self
+            .feeder_matches
+            .iter()
+            .filter(|(n, _)| *n == name)
+            .next()
+        {
             Some(matches.clone())
         } else {
             None
         }
+    }
+
+    fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn FeederMatches>>> {
+        self.feeder_matches.iter().map(|(_, m)| m.clone()).collect()
     }
 }
 
@@ -237,7 +273,7 @@ impl Feeder for FakeFeeder {
     }
 
     fn process_matches(&mut self, element: &mut dyn Values) {
-        if let Some(matches) = element.feeder_matches(self.name()) {
+        if let Some(matches) = element.get_feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
                     element.append(self.name(), val.to_string());
