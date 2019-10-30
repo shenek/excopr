@@ -7,7 +7,7 @@ mod group;
 mod tree;
 mod value;
 
-use std::sync::{Arc, RwLock};
+use std::sync::{Arc, Mutex, RwLock};
 
 pub use crate::{
     common::{AsValues, Description, FieldContainer, Members, Named, Node, Values},
@@ -38,15 +38,16 @@ impl Builder {
         Self::default()
     }
 
-    pub fn add_feeder<F>(mut self, feeder: F) -> Result<Self, error::Config>
+    pub fn add_feeder<F, E>(mut self, feeder: F) -> Result<Self, Arc<Mutex<E>>>
     where
         F: 'static + Feeder,
+        E: error::NewSetup,
     {
         if self.feeders.iter().any(|f| f.name() == feeder.name()) {
-            Err(error::Config::new(&format!(
+            Err(Arc::new(Mutex::new(E::new(format!(
                 "Feeder '{}' already exists",
                 feeder.name()
-            )))
+            )))))
         } else {
             self.feeders.push(Box::new(feeder));
             Ok(self)
@@ -58,10 +59,18 @@ impl Builder {
         self
     }
 
-    pub fn build(self) -> Result<Configuration, error::Config> {
-        let root = self
-            .root
-            .ok_or_else(|| error::Config::new("No Configuration set"))?;
+    pub fn build<E>(self) -> Result<Configuration, Arc<Mutex<E>>>
+    where
+        E: error::NewRun,
+        Arc<Mutex<E>>: From<Arc<Mutex<dyn error::Run>>>,
+    {
+        let root = self.root.ok_or_else(|| {
+            Mutex::new(E::new(
+                None,
+                vec![],
+                Some("No Configuration set".to_string()),
+            ))
+        })?;
         for mut feeder in self.feeders {
             feeder.populate(root.clone())?;
         }

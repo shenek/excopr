@@ -1,17 +1,22 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, RwLock},
+};
 
-use crate::{error, feeder, field::Field, group::Group, tree::Element, value::Value};
+use crate::{
+    config::Config, error, feeder, field::Field, group::Group, tree::Element, value::Value,
+};
 /// Common traits
 
-pub trait Help {
-    fn help(&self) -> String;
+pub trait Help: Named + fmt::Debug {
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String;
 }
 
 pub trait Description {
     fn description(&self) -> Option<String>;
 }
 
-pub trait Named {
+pub trait Named: fmt::Debug {
     fn name(&self) -> String;
 }
 
@@ -31,7 +36,7 @@ pub trait Values {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), error::Config>;
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>>;
     fn get_feeder_matches(&mut self, feeder_name: &str) -> Option<Arc<Mutex<dyn feeder::Matches>>>;
     fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn feeder::Matches>>>;
 }
@@ -41,7 +46,7 @@ pub trait AsValues {
 }
 
 pub trait FieldContainer {
-    fn add_field(self, field: Arc<RwLock<dyn Field>>) -> Result<Self, error::Config>
+    fn add_field(self, field: Arc<RwLock<dyn Field>>) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized;
 }

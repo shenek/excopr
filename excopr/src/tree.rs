@@ -8,6 +8,7 @@ use crate::{
     value::Value,
 };
 
+#[derive(Debug)]
 pub enum Element {
     Config(Arc<RwLock<dyn Config>>),
     Field(Arc<RwLock<dyn Field>>),
@@ -32,7 +33,7 @@ impl Values for Element {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), error::Config> {
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
         match self {
             Self::Config(config) => config.add_feeder_matches(feeder_name, feeder_match),
             Self::Field(field) => field.add_feeder_matches(feeder_name, feeder_match),
@@ -64,9 +65,9 @@ impl Named for Element {
 }
 
 impl Help for Element {
-    fn help(&self) -> String {
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
         match self {
-            Self::Config(config) => config.help(),
+            Self::Config(config) => config.help(parents),
             _ => panic!("help can be called only on configs"),
         }
     }
@@ -88,8 +89,8 @@ impl Named for Arc<Mutex<Element>> {
 }
 
 impl Help for Arc<Mutex<Element>> {
-    fn help(&self) -> String {
-        self.lock().unwrap().help()
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
+        self.lock().unwrap().help(parents)
     }
 }
 
@@ -253,5 +254,56 @@ mod tests {
         assert_eq!(fld.values()[0].feeder(), "testing_feeder");
         assert_eq!(fld.values()[0].value::<u16>().unwrap(), 22222);
         assert!(fld.values()[0].value::<u8>().is_err());
+    }
+
+    #[test]
+    fn help_test() {
+        let builder = Configuration::builder();
+        let root = FakeConfig {
+            name: "root".to_string(),
+            elements: vec![],
+            groups: vec![],
+            values: vec![],
+            feeder_matches: Vec::new(),
+            description: Some("This is testing command".to_string()),
+        };
+        let element1 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
+            FakeField {
+                name: "Fld".to_string(),
+                values: vec![],
+                feeder_matches: Vec::new(),
+                description: Some("Field description".to_string()),
+            },
+        )))));
+        let element2 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
+            FakeField {
+                name: "Fld".to_string(),
+                values: vec![],
+                feeder_matches: Vec::new(),
+                description: None,
+            },
+        )))));
+        let subconfig = FakeConfig {
+            name: "sub".to_string(),
+            elements: vec![element1.clone(), element2],
+            groups: vec![],
+            values: vec![],
+            feeder_matches: Vec::new(),
+            description: None,
+        };
+        let group = FakeGroup {
+            name: "Grp".to_string(),
+            members: vec![element1],
+            description: None,
+        };
+        let subconfig = subconfig.add_group(Arc::new(RwLock::new(group))).unwrap();
+        let root = root.add_config(Arc::new(RwLock::new(subconfig))).unwrap();
+        let res = builder.set_root(Arc::new(RwLock::new(root))).build();
+
+        if let Err(error) = res {
+            assert_eq!(format!("{}", error), "XXXXXXXXX");
+        } else {
+            panic!("not failing")
+        }
     }
 }

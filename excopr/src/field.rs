@@ -21,7 +21,7 @@ impl Values for Arc<RwLock<dyn Field>> {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), error::Config> {
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
         self.write()
             .unwrap()
             .add_feeder_matches(feeder_name, feeder_match)

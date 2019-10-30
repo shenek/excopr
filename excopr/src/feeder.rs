@@ -1,10 +1,13 @@
-use std::sync::{Arc, Mutex, RwLock};
+use std::{
+    fmt,
+    sync::{Arc, Mutex, RwLock},
+};
 
-use crate::{common::Values, config::Config, error::Config as ConfigError, tree::ElementConverter};
+use crate::{common::Values, config::Config, error, tree::ElementConverter};
 
 /// Trait which will identify underlying Feeder structure
 /// It should be placed inside configuration node
-pub trait Match {
+pub trait Match: fmt::Debug {
     /// Number which can be used to identify linked internal structure inside feeder
     fn id_in_feeder(&self) -> usize;
     /// Human readable name
@@ -21,7 +24,7 @@ impl Match for Arc<Mutex<dyn Match>> {
 }
 
 /// Represents matches inside configuration node
-pub trait Matches {
+pub trait Matches: fmt::Debug {
     /// Hint which will be shown in help
     fn repr(&self) -> String;
     /// All matches
@@ -49,7 +52,10 @@ pub trait Feeder {
     fn name(&self) -> &str;
 
     /// populates the tree with values
-    fn populate(&mut self, root: Arc<RwLock<dyn Config>>) -> Result<(), ConfigError> {
+    fn populate(
+        &mut self,
+        root: Arc<RwLock<dyn Config>>,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
         self.process_config(root, vec![])?;
         Ok(())
     }
@@ -60,11 +66,11 @@ pub trait Feeder {
         &mut self,
         config: Arc<RwLock<dyn Config>>,
         mut parents: Vec<Arc<RwLock<dyn Config>>>,
-    ) -> Result<Vec<Arc<RwLock<dyn Config>>>, ConfigError> {
+    ) -> Result<Vec<Arc<RwLock<dyn Config>>>, Arc<Mutex<dyn error::Run>>> {
         {
             // should accquire write lock
             let mut write_locked = config.write().unwrap();
-            self.process_matches(write_locked.as_values());
+            self.process_matches(write_locked.as_values())?;
         }
 
         parents.push(config.clone());
@@ -72,9 +78,12 @@ pub trait Feeder {
             //subelement.xx;
             if let Some(conf) = subelement.as_config() {
                 // TODO document read lock only parent access
-                parents = self.process_config(conf, parents)?;
+                parents = self.process_config(conf.clone(), parents).map_err(|e| {
+                    e.lock().unwrap().add_parent(conf);
+                    e
+                })?;
             } else if let Some(field) = subelement.as_field() {
-                self.process_matches(field.write().unwrap().as_values());
+                self.process_matches(field.write().unwrap().as_values())?;
             }
         }
         parents.pop();
@@ -84,5 +93,8 @@ pub trait Feeder {
 
     /// Checks feeder matches of the feeder and appends
     /// value(s) if match passes
-    fn process_matches(&mut self, element: &mut dyn Values);
+    fn process_matches(
+        &mut self,
+        element: &mut dyn Values,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>>;
 }

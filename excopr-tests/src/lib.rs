@@ -1,12 +1,15 @@
 pub use excopr::{
-    error, AsValues, Config, Configuration, Description, Element, ElementConverter, Feeder,
-    FeederMatch, FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
+    error::{self, NewSetup},
+    AsValues, Config, Configuration, Description, Element, ElementConverter, Feeder, FeederMatch,
+    FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
 };
 use std::{
     collections::HashMap,
+    fmt,
     sync::{Arc, Mutex, RwLock},
 };
 
+#[derive(Debug)]
 pub struct FakeConfig {
     pub name: String,
     pub elements: Vec<Arc<Mutex<Element>>>,
@@ -16,12 +19,14 @@ pub struct FakeConfig {
     pub description: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct FakeGroup {
     pub name: String,
     pub members: Vec<Arc<Mutex<Element>>>,
     pub description: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct FakeField {
     pub name: String,
     pub values: Vec<Value>,
@@ -29,13 +34,14 @@ pub struct FakeField {
     pub description: Option<String>,
 }
 
+#[derive(Debug)]
 pub struct FakeFeeder {
     pub name: String,
     pub map: HashMap<String, String>,
     matches: Vec<Arc<Mutex<FakeMatch>>>,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct FakeMatch {
     id_in_feeder: usize,
     repr: String,
@@ -51,6 +57,7 @@ impl FeederMatch for FakeMatch {
     }
 }
 
+#[derive(Debug)]
 pub struct FakeMatches {
     matches: Vec<Arc<Mutex<dyn FeederMatch>>>,
 }
@@ -107,13 +114,13 @@ impl Values for FakeConfig {
         &mut self,
         feeder_name: &str,
         feeder_matches: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), error::Config> {
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
         let name = feeder_name.to_string();
         if self.feeder_matches.iter().any(|(n, _)| *n == name) {
-            Err(error::Config::new(&format!(
+            Err(Arc::new(Mutex::new(FakeSetupError::new(format!(
                 "feeder name '{}' already exists",
                 name
-            )))
+            )))))
         } else {
             self.feeder_matches
                 .push((feeder_name.to_string(), feeder_matches));
@@ -147,7 +154,10 @@ impl AsValues for FakeConfig {
 }
 
 impl Config for FakeConfig {
-    fn add_config(mut self, config: Arc<RwLock<dyn Config>>) -> Result<Self, error::Config>
+    fn add_config(
+        mut self,
+        config: Arc<RwLock<dyn Config>>,
+    ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized,
     {
@@ -155,7 +165,10 @@ impl Config for FakeConfig {
             .push(Arc::new(Mutex::new(Element::Config(config))));
         Ok(self)
     }
-    fn add_group(mut self, group: Arc<RwLock<dyn Group>>) -> Result<Self, error::Config>
+    fn add_group(
+        mut self,
+        group: Arc<RwLock<dyn Group>>,
+    ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized,
     {
@@ -171,7 +184,10 @@ impl Description for FakeConfig {
 }
 
 impl FieldContainer for FakeConfig {
-    fn add_field(mut self, field: Arc<RwLock<dyn Field>>) -> Result<Self, error::Config>
+    fn add_field(
+        mut self,
+        field: Arc<RwLock<dyn Field>>,
+    ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized,
     {
@@ -222,13 +238,13 @@ impl Values for FakeField {
         &mut self,
         feeder_name: &str,
         feeder_matches: Arc<Mutex<dyn FeederMatches>>,
-    ) -> Result<(), error::Config> {
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
         let name = feeder_name.to_string();
         if self.feeder_matches.iter().any(|(n, _)| *n == name) {
-            Err(error::Config::new(&format!(
+            Err(Arc::new(Mutex::new(FakeSetupError::new(format!(
                 "feeder name '{}' already exists",
                 name
-            )))
+            )))))
         } else {
             self.feeder_matches
                 .push((feeder_name.to_string(), feeder_matches));
@@ -272,7 +288,10 @@ impl Feeder for FakeFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: &mut dyn Values) {
+    fn process_matches(
+        &mut self,
+        element: &mut dyn Values,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
         if let Some(matches) = element.get_feeder_matches(self.name()) {
             for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
                 if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
@@ -280,6 +299,7 @@ impl Feeder for FakeFeeder {
                 }
             }
         }
+        Ok(())
     }
 }
 
@@ -301,3 +321,29 @@ impl FakeFeeder {
         }
     }
 }
+
+#[derive(Debug)]
+pub struct FakeSetupError {
+    msg: String,
+}
+
+impl error::NewSetup for FakeSetupError {
+    fn new(msg: String) -> Self {
+        Self { msg }
+    }
+}
+impl error::Setup for FakeSetupError {
+    fn msg(&self) -> String {
+        self.msg.clone()
+    }
+}
+impl std::error::Error for FakeSetupError {}
+impl fmt::Display for FakeSetupError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.msg)?;
+        Ok(())
+    }
+}
+
+pub struct FakeRunError;
+// TODO implement here in the same way as FakeSetupError

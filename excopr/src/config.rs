@@ -10,10 +10,13 @@ use crate::{
 
 pub trait Config: Named + Node + Values + Description + AsValues {
     /// Adds mutually exclusive configs
-    fn add_config(self, configs: Arc<RwLock<dyn Config>>) -> Result<Self, error::Config>
+    fn add_config(
+        self,
+        configs: Arc<RwLock<dyn Config>>,
+    ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized;
-    fn add_group(self, group: Arc<RwLock<dyn Group>>) -> Result<Self, error::Config>
+    fn add_group(self, group: Arc<RwLock<dyn Group>>) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
     where
         Self: Sized;
 }
@@ -31,7 +34,7 @@ impl Values for Arc<RwLock<dyn Config>> {
         &mut self,
         feeder_name: &str,
         feeder_match: Arc<Mutex<dyn feeder::Matches>>,
-    ) -> Result<(), error::Config> {
+    ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
         self.write()
             .unwrap()
             .add_feeder_matches(feeder_name, feeder_match)
@@ -53,14 +56,14 @@ impl Named for Arc<RwLock<dyn Config>> {
 }
 
 impl Help for dyn Config {
-    fn help(&self) -> String {
+    fn help(&self, _parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
         unimplemented!();
     }
 }
 
 impl Help for Arc<RwLock<dyn Config>> {
-    fn help(&self) -> String {
-        self.read().unwrap().help()
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
+        self.read().unwrap().help(parents)
     }
 }
 

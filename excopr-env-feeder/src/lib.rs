@@ -4,9 +4,9 @@ use std::{
     sync::{Arc, Mutex},
 };
 
-use excopr::{Feeder, FeederMatch, FeederMatches, Values};
+use excopr::{error, Feeder, FeederMatch, FeederMatches, Values};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct EnvMatch {
     id_in_feeder: usize,
     env_variable_name: String,
@@ -22,6 +22,7 @@ impl FeederMatch for EnvMatch {
     }
 }
 
+#[derive(Debug)]
 pub struct EnvMatches {
     matches: Vec<Arc<Mutex<dyn FeederMatch>>>,
 }
@@ -47,6 +48,7 @@ impl FeederMatches for EnvMatches {
     }
 }
 
+#[derive(Debug)]
 pub struct EnvFeeder {
     name: String,
     env_vars: HashMap<String, String>,
@@ -87,7 +89,10 @@ impl Feeder for EnvFeeder {
         &self.name
     }
 
-    fn process_matches(&mut self, element: &mut dyn Values) {
+    fn process_matches(
+        &mut self,
+        element: &mut dyn Values,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
         // TODO several strategies can be use here:
         // * add value only if no prev value is set
         // * add value only if no prev values from this feeder is set
@@ -102,13 +107,15 @@ impl Feeder for EnvFeeder {
                 }
             }
         }
+        Ok(())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use excopr_tests::{
-        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, Node, Values,
+        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, FakeSetupError,
+        Node, Values,
     };
     use std::{
         env,
@@ -168,7 +175,7 @@ mod tests {
             .add_feeder(feeder)
             .unwrap()
             .set_root(root)
-            .build()
+            .build::<FakeSetupError>()
             .unwrap();
 
         let cfg = res.root.read().unwrap();
