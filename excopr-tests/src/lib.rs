@@ -1,7 +1,7 @@
 pub use excopr::{
-    error::{self, NewSetup},
+    error::{self, NewRun, NewSetup},
     AsValues, Config, Configuration, Description, Element, ElementConverter, Feeder, FeederMatch,
-    FeederMatches, Field, FieldContainer, Group, Members, Named, Node, Value, Values,
+    FeederMatches, Field, FieldContainer, Group, Help, Members, Named, Node, Value, Values,
 };
 use std::{
     collections::HashMap,
@@ -345,5 +345,67 @@ impl fmt::Display for FakeSetupError {
     }
 }
 
-pub struct FakeRunError;
+#[derive(Debug)]
+pub struct FakeRunError {
+    node: Option<Arc<RwLock<dyn Help>>>,
+    parents: Vec<Arc<RwLock<dyn Config>>>,
+    msg: Option<String>,
+}
+
+impl error::NewRun for FakeRunError {
+    fn new(
+        node: Option<Arc<RwLock<dyn Help>>>,
+        parents: Vec<Arc<RwLock<dyn Config>>>,
+        msg: Option<String>,
+    ) -> Self {
+        Self { node, parents, msg }
+    }
+
+    fn convert(dynamic: Arc<Mutex<dyn error::Run>>) -> Arc<Mutex<Self>> {
+        let unlocked = dynamic.lock().unwrap();
+        Arc::new(Mutex::new(Self {
+            node: unlocked.node(),
+            parents: unlocked.parents(),
+            msg: unlocked.msg(),
+        }))
+    }
+}
+
+impl error::Run for FakeRunError {
+    fn node(&self) -> Option<Arc<RwLock<dyn Help>>> {
+        self.node.clone()
+    }
+
+    fn parents(&self) -> Vec<Arc<RwLock<dyn Config>>> {
+        self.parents.clone()
+    }
+
+    fn msg(&self) -> Option<String> {
+        self.msg.clone()
+    }
+
+    fn add_parent(&mut self, parent: Arc<RwLock<dyn Config>>) {
+        self.parents.push(parent);
+    }
+}
+
+impl std::error::Error for FakeRunError {}
+
+impl fmt::Display for FakeRunError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if let Some(msg) = self.msg.as_ref() {
+            writeln!(f, "{}\n", msg)?;
+        }
+        if let Some(node) = self.node.clone() {
+            writeln!(f, "{}", node.read().unwrap().help(self.parents.clone()))?;
+        } else if let Some(node) = self.parents.first() {
+            writeln!(
+                f,
+                "{}",
+                node.read().unwrap().help(self.parents[1..].to_vec())
+            )?;
+        }
+        Ok(())
+    }
+}
 // TODO implement here in the same way as FakeSetupError

@@ -114,8 +114,8 @@ impl Feeder for EnvFeeder {
 #[cfg(test)]
 mod tests {
     use excopr_tests::{
-        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, FakeSetupError,
-        Node, Values,
+        Config, Configuration, Element, ElementConverter, FakeConfig, FakeField, FakeRunError,
+        FakeSetupError, Node, Values,
     };
     use std::{
         env,
@@ -175,7 +175,7 @@ mod tests {
             .add_feeder(feeder)
             .unwrap()
             .set_root(root)
-            .build::<FakeSetupError>()
+            .build::<FakeRunError>()
             .unwrap();
 
         let cfg = res.root.read().unwrap();
