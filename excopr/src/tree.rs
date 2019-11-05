@@ -127,7 +127,7 @@ impl ElementConverter for Arc<Mutex<Element>> {
 mod tests {
     use excopr_tests::{
         Config, Configuration, Element, ElementConverter, FakeConfig, FakeFeeder, FakeField,
-        FakeGroup, FakeMatches, Named, Node, Values,
+        FakeGroup, FakeMatches, FakeRunError, FakeSetupError, Named, Node, Values,
     };
     use std::{
         collections::HashMap,
@@ -170,7 +170,7 @@ mod tests {
         let root = root.add_config(Arc::new(RwLock::new(subconfig))).unwrap();
         let configuration = builder
             .set_root(Arc::new(RwLock::new(root)))
-            .build()
+            .build::<FakeRunError>()
             .unwrap();
         let conf = configuration.root.read().unwrap();
         let subconf = conf.elements()[0].as_config().unwrap();
@@ -183,16 +183,16 @@ mod tests {
     fn adding_feeders() {
         let builder = Configuration::builder();
         let builder = builder
-            .add_feeder(FakeFeeder::new("test", HashMap::new()))
+            .add_feeder::<FakeFeeder, FakeSetupError>(FakeFeeder::new("test", HashMap::new()))
             .unwrap();
         assert!(builder
-            .add_feeder(FakeFeeder::new("test", HashMap::new()))
+            .add_feeder::<FakeFeeder, FakeSetupError>(FakeFeeder::new("test", HashMap::new()))
             .is_err());
     }
 
     #[test]
     fn empty_builder() {
-        assert!(Configuration::builder().build().is_err())
+        assert!(Configuration::builder().build::<FakeRunError>().is_err())
     }
 
     #[test]
@@ -240,10 +240,10 @@ mod tests {
         }
 
         let res = builder
-            .add_feeder(feeder)
+            .add_feeder::<FakeFeeder, FakeSetupError>(feeder)
             .unwrap()
             .set_root(Arc::new(RwLock::new(root)))
-            .build()
+            .build::<FakeRunError>()
             .unwrap();
 
         let cfg = res.root.read().unwrap();
@@ -298,10 +298,12 @@ mod tests {
         };
         let subconfig = subconfig.add_group(Arc::new(RwLock::new(group))).unwrap();
         let root = root.add_config(Arc::new(RwLock::new(subconfig))).unwrap();
-        let res = builder.set_root(Arc::new(RwLock::new(root))).build();
+        let res = builder
+            .set_root(Arc::new(RwLock::new(root)))
+            .build::<FakeRunError>();
 
         if let Err(error) = res {
-            assert_eq!(format!("{}", error), "XXXXXXXXX");
+            assert_eq!(format!("{}", error.lock().unwrap()), "XXXXXXXXX");
         } else {
             panic!("not failing")
         }

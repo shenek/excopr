@@ -1,6 +1,6 @@
 use std::{
     error::Error,
-    sync::{Arc, Mutex, RwLock},
+    sync::{Arc, RwLock},
 };
 
 use crate::{common::Help, config::Config};
@@ -35,7 +35,6 @@ pub trait NewRun: Run {
         parents: Vec<Arc<RwLock<dyn Config>>>,
         msg: Option<String>,
     ) -> Self;
-    fn convert(dynamic: Arc<Mutex<dyn Run>>) -> Arc<Mutex<Self>>;
 }
 
 /// Error which happens during the validation

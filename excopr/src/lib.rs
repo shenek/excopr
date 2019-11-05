@@ -62,7 +62,7 @@ impl Builder {
     pub fn build<E>(self) -> Result<Configuration, Arc<Mutex<E>>>
     where
         E: error::NewRun,
-        Arc<Mutex<E>>: From<Arc<Mutex<dyn error::Run>>>,
+        //Arc<Mutex<E>>: From<Arc<Mutex<dyn error::Run>>>,
     {
         let root = self.root.ok_or_else(|| {
             Mutex::new(E::new(
@@ -72,7 +72,13 @@ impl Builder {
             ))
         })?;
         for mut feeder in self.feeders {
-            feeder.populate(root.clone())?;
+            feeder.populate(root.clone()).map_err(|err| {
+                Arc::new(Mutex::new(E::new(
+                    err.lock().unwrap().node(),
+                    err.lock().unwrap().parents(),
+                    err.lock().unwrap().msg(),
+                )))
+            })?;
         }
         // TODO remove empty programs
         Ok(Configuration { root })

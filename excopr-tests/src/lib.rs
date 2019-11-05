@@ -360,15 +360,6 @@ impl error::NewRun for FakeRunError {
     ) -> Self {
         Self { node, parents, msg }
     }
-
-    fn convert(dynamic: Arc<Mutex<dyn error::Run>>) -> Arc<Mutex<Self>> {
-        let unlocked = dynamic.lock().unwrap();
-        Arc::new(Mutex::new(Self {
-            node: unlocked.node(),
-            parents: unlocked.parents(),
-            msg: unlocked.msg(),
-        }))
-    }
 }
 
 impl error::Run for FakeRunError {
@@ -408,4 +399,3 @@ impl fmt::Display for FakeRunError {
         Ok(())
     }
 }
-// TODO implement here in the same way as FakeSetupError

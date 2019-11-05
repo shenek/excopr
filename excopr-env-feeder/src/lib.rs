@@ -172,7 +172,7 @@ mod tests {
         }
 
         let res = builder
-            .add_feeder(feeder)
+            .add_feeder::<EnvFeeder, FakeSetupError>(feeder)
             .unwrap()
             .set_root(root)
             .build::<FakeRunError>()
