@@ -126,8 +126,9 @@ impl ElementConverter for Arc<Mutex<Element>> {
 #[cfg(test)]
 mod tests {
     use excopr_tests::{
-        Config, Configuration, Element, ElementConverter, FakeConfig, FakeFeeder, FakeField,
-        FakeGroup, FakeMatches, FakeRunError, FakeSetupError, Named, Node, Values,
+        error, AsValues, Config, Configuration, Description, Element, ElementConverter, FakeConfig,
+        FakeFeeder, FakeField, FakeGroup, FakeMatches, FakeRunError, FakeSetupError, FeederMatches,
+        Field, Group, Named, NewSetup, Node, Value, Values,
     };
     use std::{
         collections::HashMap,
@@ -256,6 +257,173 @@ mod tests {
         assert!(fld.values()[0].value::<u8>().is_err());
     }
 
+    #[derive(Debug)]
+    struct FailingField {
+        description: Option<String>,
+        name: String,
+        feeder_matches: Vec<(String, Arc<Mutex<dyn FeederMatches>>)>,
+    }
+
+    impl Field for FailingField {}
+
+    impl Description for FailingField {
+        fn description(&self) -> Option<String> {
+            self.description.clone()
+        }
+    }
+    impl Named for FailingField {
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+    }
+    impl Values for FailingField {
+        fn values(&self) -> Vec<Value> {
+            vec![]
+        }
+
+        fn append(&mut self, _: &str, _: String) {}
+
+        fn add_feeder_matches(
+            &mut self,
+            feeder_name: &str,
+            feeder_matches: Arc<Mutex<dyn FeederMatches>>,
+        ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
+            let name = feeder_name.to_string();
+            if self.feeder_matches.iter().any(|(n, _)| *n == name) {
+                Err(Arc::new(Mutex::new(FakeSetupError::new(format!(
+                    "feeder name '{}' already exists",
+                    name
+                )))))
+            } else {
+                self.feeder_matches
+                    .push((feeder_name.to_string(), feeder_matches));
+                Ok(())
+            }
+        }
+
+        fn get_feeder_matches(
+            &mut self,
+            feeder_name: &str,
+        ) -> Option<Arc<Mutex<dyn FeederMatches>>> {
+            let name = feeder_name.to_string();
+            if let Some((_, matches)) = self.feeder_matches.iter().find(|(n, _)| *n == name) {
+                Some(matches.clone())
+            } else {
+                None
+            }
+        }
+
+        fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn FeederMatches>>> {
+            self.feeder_matches.iter().map(|(_, m)| m.clone()).collect()
+        }
+    }
+
+    impl AsValues for FailingField {
+        fn as_values(&mut self) -> &mut dyn Values {
+            self
+        }
+    }
+
+    #[derive(Debug)]
+    struct FailingConfig {
+        description: Option<String>,
+        name: String,
+        feeder_matches: Vec<(String, Arc<Mutex<dyn FeederMatches>>)>,
+        elements: Vec<Arc<Mutex<Element>>>,
+        groups: Vec<Arc<RwLock<dyn Group>>>,
+    }
+
+    impl Config for FailingConfig {
+        fn add_config(
+            mut self,
+            config: Arc<RwLock<dyn Config>>,
+        ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
+        where
+            Self: Sized,
+        {
+            self.elements
+                .push(Arc::new(Mutex::new(Element::Config(config))));
+            Ok(self)
+        }
+        fn add_group(
+            mut self,
+            group: Arc<RwLock<dyn Group>>,
+        ) -> Result<Self, Arc<Mutex<dyn error::Setup>>>
+        where
+            Self: Sized,
+        {
+            self.groups.push(group);
+            Ok(self)
+        }
+    }
+
+    impl Description for FailingConfig {
+        fn description(&self) -> Option<String> {
+            self.description.clone()
+        }
+    }
+    impl Named for FailingConfig {
+        fn name(&self) -> String {
+            self.name.clone()
+        }
+    }
+    impl Values for FailingConfig {
+        fn values(&self) -> Vec<Value> {
+            vec![]
+        }
+
+        fn append(&mut self, _: &str, _: String) {}
+
+        fn add_feeder_matches(
+            &mut self,
+            feeder_name: &str,
+            feeder_matches: Arc<Mutex<dyn FeederMatches>>,
+        ) -> Result<(), Arc<Mutex<dyn error::Setup>>> {
+            let name = feeder_name.to_string();
+            if self.feeder_matches.iter().any(|(n, _)| *n == name) {
+                Err(Arc::new(Mutex::new(FakeSetupError::new(format!(
+                    "feeder name '{}' already exists",
+                    name
+                )))))
+            } else {
+                self.feeder_matches
+                    .push((feeder_name.to_string(), feeder_matches));
+                Ok(())
+            }
+        }
+
+        fn get_feeder_matches(
+            &mut self,
+            feeder_name: &str,
+        ) -> Option<Arc<Mutex<dyn FeederMatches>>> {
+            let name = feeder_name.to_string();
+            if let Some((_, matches)) = self.feeder_matches.iter().find(|(n, _)| *n == name) {
+                Some(matches.clone())
+            } else {
+                None
+            }
+        }
+
+        fn all_feeder_matches(&mut self) -> Vec<Arc<Mutex<dyn FeederMatches>>> {
+            self.feeder_matches.iter().map(|(_, m)| m.clone()).collect()
+        }
+    }
+
+    impl AsValues for FailingConfig {
+        fn as_values(&mut self) -> &mut dyn Values {
+            self
+        }
+    }
+
+    impl Node for FailingConfig {
+        fn elements(&self) -> Vec<Arc<Mutex<Element>>> {
+            self.elements.clone()
+        }
+        fn groups(&self) -> Vec<Arc<RwLock<dyn Group>>> {
+            self.groups.clone()
+        }
+    }
+
     #[test]
     fn help_test() {
         let builder = Configuration::builder();
@@ -283,9 +451,17 @@ mod tests {
                 description: None,
             },
         )))));
+        let element3 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
+            FailingField {
+                description: Some("help for failing field".to_string()),
+                name: "test_help".to_string(),
+                feeder_matches: Vec::new(),
+            },
+        )))));
+
         let subconfig = FakeConfig {
             name: "sub".to_string(),
-            elements: vec![element1.clone(), element2],
+            elements: vec![element1.clone(), element2, element3],
             groups: vec![],
             values: vec![],
             feeder_matches: Vec::new(),
