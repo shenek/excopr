@@ -127,8 +127,8 @@ impl ElementConverter for Arc<Mutex<Element>> {
 mod tests {
     use excopr_tests::{
         error, AsValues, Config, Configuration, Description, Element, ElementConverter, FakeConfig,
-        FakeFeeder, FakeField, FakeGroup, FakeMatches, FakeRunError, FakeSetupError, FeederMatches,
-        Field, Group, Named, NewSetup, Node, Value, Values,
+        FakeFeeder, FakeField, FakeGroup, FakeMatches, FakeRunError, FakeSetupError, Feeder,
+        FeederMatch, FeederMatches, Field, Group, Named, NewSetup, Node, Value, Values,
     };
     use std::{
         collections::HashMap,
@@ -321,6 +321,54 @@ mod tests {
     impl AsValues for FailingField {
         fn as_values(&mut self) -> &mut dyn Values {
             self
+        }
+    }
+
+    #[derive(Debug)]
+    struct FalingMatch(usize);
+
+    impl FeederMatch for FalingMatch {
+        fn id_in_feeder(&self) -> usize {
+            self.0
+        }
+        fn repr(&self) -> String {
+            self.0.to_string()
+        }
+    }
+
+    #[derive(Debug)]
+    struct FalingMatches(Vec<Arc<Mutex<dyn FeederMatch>>>);
+
+    impl FeederMatches for FalingMatches {
+        fn repr(&self) -> String {
+            self.0
+                .iter()
+                .map(|e| e.repr())
+                .collect::<Vec<String>>()
+                .join(" ")
+        }
+
+        fn matches(&self) -> Vec<Arc<Mutex<dyn FeederMatch>>> {
+            self.0.clone()
+        }
+
+        fn add_match(&mut self, new_match: Arc<Mutex<dyn FeederMatch>>) {
+            self.0.push(new_match)
+        }
+    }
+
+    #[derive(Debug)]
+    struct FailingFeeder;
+
+    impl Feeder for FailingFeeder {
+        fn name(&self) -> &str {
+            "failing"
+        }
+        fn process_matches(
+            &mut self,
+            element: &mut dyn Values,
+        ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+            element.get_feeder_matches("failing")
         }
     }
 
