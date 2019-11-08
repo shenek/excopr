@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, RwLock},
 };
 
-use crate::{common::Help, config::Config};
+use crate::{config::Config, field::Field};
 
 /// Setup error should occur only when
 /// an incorrect config configuration is detected
@@ -22,7 +22,8 @@ pub trait NewSetup: Setup {
 ///
 /// e.g. cmdline parameters are not parsed correctly
 pub trait Run: Error {
-    fn node(&self) -> Option<Arc<RwLock<dyn Help>>>;
+    fn config(&self) -> Option<Arc<RwLock<dyn Config>>>;
+    fn field(&self) -> Option<Arc<RwLock<dyn Field>>>;
     fn parents(&self) -> Vec<Arc<RwLock<dyn Config>>>;
     fn msg(&self) -> Option<String>;
     fn add_parent(&mut self, parent: Arc<RwLock<dyn Config>>);
@@ -31,7 +32,8 @@ pub trait Run: Error {
 /// non-dynamic constructor trait
 pub trait NewRun: Run {
     fn new(
-        node: Option<Arc<RwLock<dyn Help>>>,
+        config: Option<Arc<RwLock<dyn Config>>>,
+        field: Option<Arc<RwLock<dyn Field>>>,
         parents: Vec<Arc<RwLock<dyn Config>>>,
         msg: Option<String>,
     ) -> Self;

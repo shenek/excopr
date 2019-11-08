@@ -9,7 +9,9 @@ use crate::{
 /// Common traits
 
 pub trait Help: Named + fmt::Debug {
-    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String;
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
+        unimplemented!()
+    }
 }
 
 pub trait Description {
@@ -29,7 +31,7 @@ pub trait Node {
     fn groups(&self) -> Vec<Arc<RwLock<dyn Group>>>;
 }
 
-pub trait Values {
+pub trait Values: Help {
     fn values(&self) -> Vec<Value>;
     fn append(&mut self, feeder: &str, value: String);
     fn add_feeder_matches(

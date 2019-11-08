@@ -127,8 +127,9 @@ impl ElementConverter for Arc<Mutex<Element>> {
 mod tests {
     use excopr_tests::{
         error, AsValues, Config, Configuration, Description, Element, ElementConverter, FakeConfig,
-        FakeFeeder, FakeField, FakeGroup, FakeMatches, FakeRunError, FakeSetupError, Feeder,
-        FeederMatch, FeederMatches, Field, Group, Named, NewSetup, Node, Value, Values,
+        FakeFeeder, FakeField, FakeGroup, FakeMatch, FakeMatches, FakeRunError, FakeSetupError,
+        Feeder, FeederMatch, FeederMatches, Field, Group, Help, Named, NewSetup, Node, Value,
+        Values,
     };
     use std::{
         collections::HashMap,
@@ -271,6 +272,9 @@ mod tests {
             self.description.clone()
         }
     }
+
+    impl Help for FailingField {}
+
     impl Named for FailingField {
         fn name(&self) -> String {
             self.name.clone()
@@ -358,17 +362,56 @@ mod tests {
     }
 
     #[derive(Debug)]
-    struct FailingFeeder;
+    struct FailingFeeder {
+        matches: Vec<Arc<Mutex<FakeMatch>>>,
+    }
+
+    impl FailingFeeder {
+        pub fn add_match(&mut self, match_name: &str) -> Arc<Mutex<dyn FeederMatch>> {
+            let new_match = Arc::new(Mutex::new(FakeMatch {
+                id_in_feeder: self.matches.len(),
+                repr: match_name.to_string(),
+            }));
+            self.matches.push(new_match.clone());
+            new_match
+        }
+    }
 
     impl Feeder for FailingFeeder {
         fn name(&self) -> &str {
             "failing"
         }
-        fn process_matches(
+        fn process_config(
             &mut self,
-            element: &mut dyn Values,
+            config: Arc<RwLock<dyn Config>>,
         ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
-            element.get_feeder_matches("failing")
+            //dbg!(config.clone().get_feeder_matches("failing"));
+            match config.clone().get_feeder_matches("failing") {
+                Some(matches) => Err(Arc::new(Mutex::new(FakeRunError {
+                    config: Some(config),
+                    field: None,
+                    parents: vec![],
+                    msg: Some(matches.lock().unwrap().repr()),
+                }))),
+                None => Ok(()),
+            }
+        }
+
+        fn process_field(
+            &mut self,
+            field: Arc<RwLock<dyn Field>>,
+        ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+            //dbg!(field.clone().all_feeder_matches());
+            //dbg!(field.clone().get_feeder_matches("failing"));
+            match field.clone().get_feeder_matches("failing") {
+                Some(matches) => Err(Arc::new(Mutex::new(FakeRunError {
+                    config: None,
+                    field: Some(field),
+                    parents: vec![],
+                    msg: Some(matches.lock().unwrap().repr()),
+                }))),
+                None => Ok(()),
+            }
         }
     }
 
@@ -415,6 +458,9 @@ mod tests {
             self.name.clone()
         }
     }
+
+    impl Help for FailingConfig {}
+
     impl Values for FailingConfig {
         fn values(&self) -> Vec<Value> {
             vec![]
@@ -473,8 +519,9 @@ mod tests {
     }
 
     #[test]
-    fn help_test() {
+    fn help_field() {
         let builder = Configuration::builder();
+        let mut feeder = FailingFeeder { matches: vec![] };
         let root = FakeConfig {
             name: "root".to_string(),
             elements: vec![],
@@ -499,6 +546,7 @@ mod tests {
                 description: None,
             },
         )))));
+
         let element3 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FailingField {
                 description: Some("help for failing field".to_string()),
@@ -506,6 +554,10 @@ mod tests {
                 feeder_matches: Vec::new(),
             },
         )))));
+        element3.lock().unwrap().add_feeder_matches(
+            "failing",
+            Arc::new(Mutex::new(FakeMatches::new(vec![feeder.add_match("xxx")]))),
+        );
 
         let subconfig = FakeConfig {
             name: "sub".to_string(),
@@ -523,6 +575,8 @@ mod tests {
         let subconfig = subconfig.add_group(Arc::new(RwLock::new(group))).unwrap();
         let root = root.add_config(Arc::new(RwLock::new(subconfig))).unwrap();
         let res = builder
+            .add_feeder::<FailingFeeder, FakeSetupError>(feeder)
+            .unwrap()
             .set_root(Arc::new(RwLock::new(root)))
             .build::<FakeRunError>();
 

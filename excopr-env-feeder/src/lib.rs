@@ -1,10 +1,10 @@
 use std::{
     collections::HashMap,
     env,
-    sync::{Arc, Mutex},
+    sync::{Arc, Mutex, RwLock},
 };
 
-use excopr::{error, Feeder, FeederMatch, FeederMatches, Values};
+use excopr::{error, Config, Feeder, FeederMatch, FeederMatches, Field, Values};
 
 #[derive(Clone, Debug)]
 pub struct EnvMatch {
@@ -82,6 +82,27 @@ impl EnvFeeder {
         self.matches.push(new_match.clone());
         new_match
     }
+
+    fn process_values(
+        &mut self,
+        values: &mut dyn Values,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+        // TODO several strategies can be use here:
+        // * add value only if no prev value is set
+        // * add value only if no prev values from this feeder is set
+        // * ...
+        if let Some(matches) = values.get_feeder_matches(self.name()) {
+            for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
+                if let Some(value) = self
+                    .env_vars
+                    .get(&self.matches[idx].lock().unwrap().env_variable_name)
+                {
+                    values.append(self.name(), value.to_string())
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 impl Feeder for EnvFeeder {
@@ -89,24 +110,19 @@ impl Feeder for EnvFeeder {
         &self.name
     }
 
-    fn process_matches(
+    fn process_config(
         &mut self,
-        element: &mut dyn Values,
+        config: Arc<RwLock<dyn Config>>,
     ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
-        // TODO several strategies can be use here:
-        // * add value only if no prev value is set
-        // * add value only if no prev values from this feeder is set
-        // * ...
-        if let Some(matches) = element.get_feeder_matches(self.name()) {
-            for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
-                if let Some(value) = self
-                    .env_vars
-                    .get(&self.matches[idx].lock().unwrap().env_variable_name)
-                {
-                    element.append(self.name(), value.to_string())
-                }
-            }
-        }
+        self.process_values(config.write().unwrap().as_values())?;
+        Ok(())
+    }
+
+    fn process_field(
+        &mut self,
+        field: Arc<RwLock<dyn Field>>,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+        self.process_values(field.write().unwrap().as_values())?;
         Ok(())
     }
 }

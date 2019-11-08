@@ -43,8 +43,8 @@ pub struct FakeFeeder {
 
 #[derive(Clone, Debug)]
 pub struct FakeMatch {
-    id_in_feeder: usize,
-    repr: String,
+    pub id_in_feeder: usize,
+    pub repr: String,
 }
 
 impl FeederMatch for FakeMatch {
@@ -91,6 +91,8 @@ impl Named for FakeConfig {
         self.name.clone()
     }
 }
+
+impl Help for FakeConfig {}
 
 impl Node for FakeConfig {
     fn elements(&self) -> Vec<Arc<Mutex<Element>>> {
@@ -225,6 +227,8 @@ impl Description for FakeField {
     }
 }
 
+impl Help for FakeField {}
+
 impl Values for FakeField {
     fn values(&self) -> Vec<Value> {
         self.values.clone()
@@ -288,17 +292,19 @@ impl Feeder for FakeFeeder {
         &self.name
     }
 
-    fn process_matches(
+    fn process_config(
         &mut self,
-        element: &mut dyn Values,
+        config: Arc<RwLock<dyn Config>>,
     ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
-        if let Some(matches) = element.get_feeder_matches(self.name()) {
-            for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
-                if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
-                    element.append(self.name(), val.to_string());
-                }
-            }
-        }
+        self.process_values(config.write().unwrap().as_values())?;
+        Ok(())
+    }
+
+    fn process_field(
+        &mut self,
+        field: Arc<RwLock<dyn Field>>,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+        self.process_values(field.write().unwrap().as_values())?;
         Ok(())
     }
 }
@@ -319,6 +325,20 @@ impl FakeFeeder {
             map,
             matches: vec![],
         }
+    }
+
+    fn process_values(
+        &mut self,
+        element: &mut dyn Values,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
+        if let Some(matches) = element.get_feeder_matches(self.name()) {
+            for idx in matches.matches().iter().map(|e| e.id_in_feeder()) {
+                if let Some(val) = self.map.get(&self.matches[idx].lock().unwrap().repr) {
+                    element.append(self.name(), val.to_string());
+                }
+            }
+        }
+        Ok(())
     }
 }
 
@@ -347,24 +367,35 @@ impl fmt::Display for FakeSetupError {
 
 #[derive(Debug)]
 pub struct FakeRunError {
-    node: Option<Arc<RwLock<dyn Help>>>,
-    parents: Vec<Arc<RwLock<dyn Config>>>,
-    msg: Option<String>,
+    pub config: Option<Arc<RwLock<dyn Config>>>,
+    pub field: Option<Arc<RwLock<dyn Field>>>,
+    pub parents: Vec<Arc<RwLock<dyn Config>>>,
+    pub msg: Option<String>,
 }
 
 impl error::NewRun for FakeRunError {
     fn new(
-        node: Option<Arc<RwLock<dyn Help>>>,
+        config: Option<Arc<RwLock<dyn Config>>>,
+        field: Option<Arc<RwLock<dyn Field>>>,
         parents: Vec<Arc<RwLock<dyn Config>>>,
         msg: Option<String>,
     ) -> Self {
-        Self { node, parents, msg }
+        Self {
+            config,
+            field,
+            parents,
+            msg,
+        }
     }
 }
 
 impl error::Run for FakeRunError {
-    fn node(&self) -> Option<Arc<RwLock<dyn Help>>> {
-        self.node.clone()
+    fn config(&self) -> Option<Arc<RwLock<dyn Config>>> {
+        self.config.clone()
+    }
+
+    fn field(&self) -> Option<Arc<RwLock<dyn Field>>> {
+        self.field.clone()
     }
 
     fn parents(&self) -> Vec<Arc<RwLock<dyn Config>>> {
@@ -387,8 +418,10 @@ impl fmt::Display for FakeRunError {
         if let Some(msg) = self.msg.as_ref() {
             writeln!(f, "{}\n", msg)?;
         }
-        if let Some(node) = self.node.clone() {
-            writeln!(f, "{}", node.read().unwrap().help(self.parents.clone()))?;
+        if let Some(config) = self.config.clone() {
+            writeln!(f, "{}", config.read().unwrap().help(self.parents.clone()))?;
+        } else if let Some(field) = self.field.clone() {
+            writeln!(f, "{}", field.read().unwrap().help(self.parents.clone()))?;
         } else if let Some(node) = self.parents.first() {
             writeln!(
                 f,

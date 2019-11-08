@@ -1,12 +1,19 @@
 use std::sync::{Arc, Mutex, RwLock};
 
 use crate::{
-    common::{AsValues, Description, Named, Values},
+    common::{AsValues, Description, Help, Named, Values},
+    config::Config,
     error, feeder,
     value::Value,
 };
 
 pub trait Field: Named + Values + Description + AsValues {}
+
+impl Help for Arc<RwLock<dyn Field>> {
+    fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
+        self.read().unwrap().help(parents)
+    }
+}
 
 impl Values for Arc<RwLock<dyn Field>> {
     fn values(&self) -> Vec<Value> {

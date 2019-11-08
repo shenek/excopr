@@ -3,7 +3,7 @@ use std::{
     sync::{Arc, Mutex, RwLock},
 };
 
-use crate::{common::Values, config::Config, error, tree::ElementConverter};
+use crate::{config::Config, error, field::Field, tree::ElementConverter};
 
 /// Trait which will identify underlying Feeder structure
 /// It should be placed inside configuration node
@@ -56,45 +56,59 @@ pub trait Feeder {
         &mut self,
         root: Arc<RwLock<dyn Config>>,
     ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
-        self.process_config(root, vec![])?;
+        dbg!("POP start");
+        self.dfs(root, vec![])?;
+        dbg!("POP end");
         Ok(())
     }
 
     /// Default processing of configuration node
     /// using DFS
-    fn process_config(
+    fn dfs(
         &mut self,
         config: Arc<RwLock<dyn Config>>,
         mut parents: Vec<Arc<RwLock<dyn Config>>>,
     ) -> Result<Vec<Arc<RwLock<dyn Config>>>, Arc<Mutex<dyn error::Run>>> {
         {
             // should accquire write lock
-            let mut write_locked = config.write().unwrap();
-            self.process_matches(write_locked.as_values())?;
+            self.process_config(config.clone())?;
         }
 
         parents.push(config.clone());
+        dbg!("START dfs", parents.len());
         for subelement in config.read().unwrap().elements() {
             //subelement.xx;
             if let Some(conf) = subelement.as_config() {
+                dbg!("CONF start");
                 // TODO document read lock only parent access
-                parents = self.process_config(conf.clone(), parents).map_err(|e| {
+                parents = self.dfs(conf.clone(), parents).map_err(|e| {
+                    dbg!("block");
                     e.lock().unwrap().add_parent(conf);
+                    dbg!("elock");
                     e
                 })?;
+                dbg!("CONF end");
             } else if let Some(field) = subelement.as_field() {
-                self.process_matches(field.write().unwrap().as_values())?;
+                self.process_field(field)?;
             }
         }
+        dbg!("OVER", parents.len());
         parents.pop();
 
         Ok(parents)
     }
 
-    /// Checks feeder matches of the feeder and appends
+    /// Checks feeder matches of the field and appends
     /// value(s) if match passes
-    fn process_matches(
+    fn process_field(
         &mut self,
-        element: &mut dyn Values,
+        field: Arc<RwLock<dyn Field>>,
+    ) -> Result<(), Arc<Mutex<dyn error::Run>>>;
+
+    /// Checks feeder matches of the field and appends
+    /// value(s) if match passes
+    fn process_config(
+        &mut self,
+        config: Arc<RwLock<dyn Config>>,
     ) -> Result<(), Arc<Mutex<dyn error::Run>>>;
 }

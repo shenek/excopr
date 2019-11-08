@@ -55,11 +55,13 @@ impl Named for Arc<RwLock<dyn Config>> {
     }
 }
 
+/*
 impl Help for dyn Config {
     fn help(&self, _parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
         unimplemented!();
     }
 }
+*/
 
 impl Help for Arc<RwLock<dyn Config>> {
     fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
