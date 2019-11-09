@@ -73,16 +73,13 @@ impl Builder {
         })?;
         for mut feeder in self.feeders {
             feeder.populate(root.clone()).map_err(|err| {
-                dbg!("FINAL");
-                let res = Arc::new(Mutex::new(E::new(
-                    err.lock().unwrap().config(),
-                    err.lock().unwrap().field(),
-                    err.lock().unwrap().parents(),
-                    err.lock().unwrap().msg(),
-                )));
-                dbg!("FINAL END");
-
-                res
+                let locked_error = err.lock().unwrap();
+                Arc::new(Mutex::new(E::new(
+                    locked_error.config(),
+                    locked_error.field(),
+                    locked_error.parents(),
+                    locked_error.msg(),
+                )))
             })?;
         }
         // TODO remove empty programs

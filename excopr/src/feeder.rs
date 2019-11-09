@@ -56,9 +56,7 @@ pub trait Feeder {
         &mut self,
         root: Arc<RwLock<dyn Config>>,
     ) -> Result<(), Arc<Mutex<dyn error::Run>>> {
-        dbg!("POP start");
         self.dfs(root, vec![])?;
-        dbg!("POP end");
         Ok(())
     }
 
@@ -75,24 +73,18 @@ pub trait Feeder {
         }
 
         parents.push(config.clone());
-        dbg!("START dfs", parents.len());
         for subelement in config.read().unwrap().elements() {
             //subelement.xx;
             if let Some(conf) = subelement.as_config() {
-                dbg!("CONF start");
                 // TODO document read lock only parent access
                 parents = self.dfs(conf.clone(), parents).map_err(|e| {
-                    dbg!("block");
                     e.lock().unwrap().add_parent(conf);
-                    dbg!("elock");
                     e
                 })?;
-                dbg!("CONF end");
             } else if let Some(field) = subelement.as_field() {
                 self.process_field(field)?;
             }
         }
-        dbg!("OVER", parents.len());
         parents.pop();
 
         Ok(parents)

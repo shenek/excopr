@@ -532,7 +532,7 @@ mod tests {
         };
         let element1 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
-                name: "Fld".to_string(),
+                name: "Fld2".to_string(),
                 values: vec![],
                 feeder_matches: Vec::new(),
                 description: Some("Field description".to_string()),
@@ -540,7 +540,7 @@ mod tests {
         )))));
         let element2 = Arc::new(Mutex::new(Element::Field(Arc::new(RwLock::new(
             FakeField {
-                name: "Fld".to_string(),
+                name: "Fld2".to_string(),
                 values: vec![],
                 feeder_matches: Vec::new(),
                 description: None,
@@ -581,7 +581,21 @@ mod tests {
             .build::<FakeRunError>();
 
         if let Err(error) = res {
-            assert_eq!(format!("{}", error.lock().unwrap()), "XXXXXXXXX");
+            assert_eq!(
+                format!("{}", error.lock().unwrap()),
+                "root
+This is testing command
+
+USAGE:
+    root [OPTIONS] [SUBCOMMAND]
+
+OPTIONS:
+    xxxx
+
+SUBCOMMANDS:
+    yyyy
+"
+            );
         } else {
             panic!("not failing")
         }

@@ -10,7 +10,13 @@ use crate::{
 
 pub trait Help: Named + fmt::Debug {
     fn help(&self, parents: Vec<Arc<RwLock<dyn Config>>>) -> String {
-        unimplemented!()
+        let path = parents
+            .iter()
+            .rev()
+            .map(|e| e.name())
+            .collect::<Vec<String>>()
+            .join(".");
+        format!("{}.{}:\n  {}", path, self.name(), "TBD")
     }
 }
 
